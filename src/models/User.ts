@@ -6,6 +6,7 @@ export interface IUser extends Document {
     email: string;
     avatar: string;
     password: string;
+    role: string;
     comparePassword(candidatePassword: string): Promise<boolean>;
 }
 
@@ -23,11 +24,22 @@ const UserSchema: Schema = new Schema({
         type: String,
         default: 'https://cdn-icons-png.flaticon.com/512/149/149071.png'
     },
+    role: {
+        type: String,
+        enum: ['user', 'admin', 'author'],
+        default: 'user'
+    },
     password: {
         type: String,
         required: true
     }
+}, {
+    timestamps: true
 });
+
+// Indexes for optimization
+UserSchema.index({ username: 1 });
+UserSchema.index({ role: 1 });
 
 // Hash password before saving
 UserSchema.pre<IUser>('save', async function (next) {

@@ -91,7 +91,7 @@ export const register = async (req: Request, res: Response) => {
             email,
             password
         });
-
+        console.log('New user registered:', user);  
         // Tạo JWT
         const token = signToken({
             userId: user._id.toString(),

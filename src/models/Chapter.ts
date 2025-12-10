@@ -93,8 +93,8 @@ ChapterSchema.index({ publishedAt: -1 }); // Sort by publish date
 ChapterSchema.index({ views: -1 }); // Sort by views (popular chapters)
 
 // Virtual để lấy thời gian đọc ước tính (200 từ/phút)
-ChapterSchema.virtual('readingTime').get(function() {
-    return Math.ceil(this?.wordCount / 200);
+ChapterSchema.virtual('readingTime').get(function(this: IChapter) {
+    return Math.ceil(this.wordCount / 200);
 });
 
 // Middleware: Tự động set publishedAt khi status chuyển sang published

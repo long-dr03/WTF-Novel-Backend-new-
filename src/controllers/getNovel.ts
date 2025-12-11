@@ -1,4 +1,5 @@
 import Novel from "../models/Novel";
+import Chapter from "../models/Chapter";
 import mongoose from "mongoose";
 import { Request, Response } from "express";
 
@@ -48,4 +49,45 @@ export const getPopularNovels = async (req: Request, res: Response) => {
         console.error('Get popular novels error:', error);
         return res.status(500).json({ error: 'Lỗi khi lấy danh sách truyện phổ biến' });
     }  
+}
+
+// Lấy danh sách chapters của một novel
+export const getChaptersByNovel = async (req: Request, res: Response) => {
+    try {
+        const novelId = req.params.novelId;
+        if (!novelId || !mongoose.Types.ObjectId.isValid(novelId)) {
+            return res.status(400).json({ error: 'Invalid novel ID format' });
+        }
+        const chapters = await Chapter.find({ novelId: novelId })
+            .select('chapterNumber title status publishedAt createdAt views wordCount')
+            .sort({ chapterNumber: 1 });
+        return res.json(chapters);
+    } catch (error) {
+        console.error('Get chapters error:', error);
+        return res.status(500).json({ error: 'Lỗi khi lấy danh sách chương' });
+    }
+}
+
+// Lấy nội dung một chapter
+export const getChapterContent = async (req: Request, res: Response) => {
+    try {
+        const { novelId, chapterNumber } = req.params;
+        if (!novelId || !mongoose.Types.ObjectId.isValid(novelId)) {
+            return res.status(400).json({ error: 'Invalid novel ID format' });
+        }
+        const chapter = await Chapter.findOne({ 
+            novelId: novelId, 
+            chapterNumber: parseInt(chapterNumber) 
+        });
+        if (!chapter) {
+            return res.status(404).json({ error: 'Không tìm thấy chương' });
+        }
+        // Tăng view
+        chapter.views = (chapter.views || 0) + 1;
+        await chapter.save();
+        return res.json(chapter);
+    } catch (error) {
+        console.error('Get chapter content error:', error);
+        return res.status(500).json({ error: 'Lỗi khi lấy nội dung chương' });
+    }
 }

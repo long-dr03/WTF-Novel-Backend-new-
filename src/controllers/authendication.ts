@@ -50,7 +50,8 @@ export const login = async (req: Request, res: Response) => {
                     id: user._id,
                     username: user.username,
                     email: user.email,
-                    avatar: user.avatar
+                    avatar: user.avatar,
+                    role: user.role
                 }
             }
         });
@@ -107,7 +108,8 @@ export const register = async (req: Request, res: Response) => {
                     id: user._id,
                     username: user.username,
                     email: user.email,
-                    avatar: user.avatar
+                    avatar: user.avatar,
+                    role: user.role
                 }
             }
         });
@@ -142,7 +144,8 @@ export const getProfile = async (req: Request, res: Response) => {
                     id: user._id,
                     username: user.username,
                     email: user.email,
-                    avatar: user.avatar
+                    avatar: user.avatar,
+                    role: user.role
                 }
             }
         });

@@ -78,28 +78,202 @@ export const createNovel = async (req: Request, res: Response) => {
 };
 export const uploadChapter = async (req: Request, res: Response) => {
     try {
-        const data = req.body;
+        const data = req.body.data; // Lấy data từ req.body.data (giống createNovel)
         let chapter;
-        const novel = await Novel.findById(new mongoose.Types.ObjectId(data.novelId));
-        console.log("novel found", data ,"id" , JSON.stringify(data.novelId));
-        if (novel) {
-            console.log("data", JSON.stringify(data));
-            chapter = new Chapter(data);
-            await chapter.save();
+        
+        if (!data || !data.novelId) {
+            return res.status(400).json({
+                EM: 'Thiếu thông tin novelId',
+                EC: -1,
+                DT: {}
+            });
         }
-        console.log("Chap mới", novel);
-        res.status(200).json({
-            EM: 'Tạo chương thành công',
-            EC: 0,
-            DT: {
-                chapterId: chapter?._id,
-                novelId: chapter?.novelId,
-                chapterNumber: chapter?.chapterNumber
-            }
-        });
+        
+        const novel = await Novel.findById(new mongoose.Types.ObjectId(data.novelId));
+        console.log("novel found", data, "id", data.novelId);
+        if (!novel) {
+            return res.status(404).json({
+                EM: 'Không tìm thấy truyện',
+                EC: -1,
+                DT: {}
+            });
+        }
+
+        // Kiểm tra xem là tạo mới hay cập nhật
+        // Nếu có chapterId hoặc tìm thấy chương với cùng novelId và chapterNumber -> update
+        let existingChapter = null;
+        
+        if (data.chapterId) {
+            existingChapter = await Chapter.findById(data.chapterId);
+        } else {
+            // Tìm chương theo novelId và chapterNumber
+            existingChapter = await Chapter.findOne({
+                novelId: new mongoose.Types.ObjectId(data.novelId),
+                chapterNumber: data.chapterNumber
+            });
+        }
+
+        if (existingChapter) {
+            // Update chương cũ
+            existingChapter.title = data.title;
+            existingChapter.content = data.content;
+            existingChapter.contentJson = data.contentJson;
+            existingChapter.wordCount = data.wordCount;
+            existingChapter.charCount = data.charCount;
+            existingChapter.status = data.status || existingChapter.status;
+            
+            await existingChapter.save();
+            chapter = existingChapter;
+            
+            console.log("Cập nhật chương:", chapter);
+            res.status(200).json({
+                EM: 'Cập nhật chương thành công',
+                EC: 0,
+                DT: {
+                    chapterId: chapter._id,
+                    novelId: data.novelId,
+                    chapterNumber: chapter.chapterNumber,
+                    isUpdate: true
+                }
+            });
+        } else {
+            // Tạo chương mới
+            console.log("data", JSON.stringify(data));
+            chapter = new Chapter({
+                novelId: new mongoose.Types.ObjectId(data.novelId),
+                chapterNumber: data.chapterNumber,
+                title: data.title,
+                content: data.content,
+                contentJson: data.contentJson,
+                wordCount: data.wordCount,
+                charCount: data.charCount,
+                status: data.status || 'draft'
+            });
+            await chapter.save();
+            
+            console.log("Chap mới:", chapter);
+            res.status(200).json({
+                EM: 'Tạo chương thành công',
+                EC: 0,
+                DT: {
+                    chapterId: chapter._id,
+                    novelId: data.novelId,
+                    chapterNumber: chapter.chapterNumber,
+                    isUpdate: false
+                }
+            });
+        }
 
     } catch (error) {
-        console.error('Update profile error:', error);
+        console.error('Upload chapter error:', error);
+        return res.status(500).json({
+            EM: 'Lỗi server. Vui lòng thử lại sau.',
+            EC: -1,
+            DT: {}
+        });
+    }
+};
+
+// Cập nhật trạng thái chương
+export const updateChapterStatus = async (req: Request, res: Response) => {
+    try {
+        const { chapterId } = req.params;
+        const { status } = req.body;
+
+        if (!chapterId || !mongoose.Types.ObjectId.isValid(chapterId)) {
+            return res.status(400).json({
+                EM: 'ID chương không hợp lệ',
+                EC: -1,
+                DT: {}
+            });
+        }
+
+        if (!status || !['draft', 'published', 'scheduled'].includes(status)) {
+            return res.status(400).json({
+                EM: 'Trạng thái không hợp lệ. Các trạng thái hợp lệ: draft, published, scheduled',
+                EC: -1,
+                DT: {}
+            });
+        }
+
+        const chapter = await Chapter.findById(chapterId);
+        if (!chapter) {
+            return res.status(404).json({
+                EM: 'Không tìm thấy chương',
+                EC: -1,
+                DT: {}
+            });
+        }
+
+        chapter.status = status;
+        if (status === 'published' && !chapter.publishedAt) {
+            chapter.publishedAt = new Date();
+        }
+        await chapter.save();
+
+        res.status(200).json({
+            EM: 'Cập nhật trạng thái chương thành công',
+            EC: 0,
+            DT: {
+                chapterId: chapter._id,
+                status: chapter.status,
+                publishedAt: chapter.publishedAt
+            }
+        });
+    } catch (error) {
+        console.error('Update chapter status error:', error);
+        return res.status(500).json({
+            EM: 'Lỗi server. Vui lòng thử lại sau.',
+            EC: -1,
+            DT: {}
+        });
+    }
+};
+
+// Cập nhật trạng thái truyện
+export const updateNovelStatus = async (req: Request, res: Response) => {
+    try {
+        const { novelId } = req.params;
+        const { status } = req.body;
+
+        if (!novelId || !mongoose.Types.ObjectId.isValid(novelId)) {
+            return res.status(400).json({
+                EM: 'ID truyện không hợp lệ',
+                EC: -1,
+                DT: {}
+            });
+        }
+
+        if (!status || !['ongoing', 'completed', 'hiatus'].includes(status)) {
+            return res.status(400).json({
+                EM: 'Trạng thái không hợp lệ. Các trạng thái hợp lệ: ongoing, completed, hiatus',
+                EC: -1,
+                DT: {}
+            });
+        }
+
+        const novel = await Novel.findById(novelId);
+        if (!novel) {
+            return res.status(404).json({
+                EM: 'Không tìm thấy truyện',
+                EC: -1,
+                DT: {}
+            });
+        }
+
+        novel.status = status;
+        await novel.save();
+
+        res.status(200).json({
+            EM: 'Cập nhật trạng thái truyện thành công',
+            EC: 0,
+            DT: {
+                novelId: novel._id,
+                status: novel.status
+            }
+        });
+    } catch (error) {
+        console.error('Update novel status error:', error);
         return res.status(500).json({
             EM: 'Lỗi server. Vui lòng thử lại sau.',
             EC: -1,

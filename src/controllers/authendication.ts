@@ -2,6 +2,7 @@
 import { Request, Response } from 'express';
 import { signToken } from '../variables/jwt';
 import User from '../models/User';
+import ApiResponse from '../utils/apiResponse';
 
 // Đăng nhập
 export const login = async (req: Request, res: Response) => {
@@ -11,28 +12,19 @@ export const login = async (req: Request, res: Response) => {
         // Kiểm tra input
         const loginValue = email || valueLogin;
         if (!loginValue || !password) {
-            return res.status(400).json({
-                status: 'error',
-                message: 'Vui lòng nhập đầy đủ email và mật khẩu'
-            });
+            return ApiResponse.badRequest(res, 'Vui lòng nhập đầy đủ email và mật khẩu');
         }
 
         // Tìm user
         const user = await User.findOne({ email: loginValue });
         if (!user) {
-            return res.status(401).json({
-                status: 'error',
-                message: 'Email hoặc mật khẩu không đúng'
-            });
+            return ApiResponse.unauthorized(res, 'Email hoặc mật khẩu không đúng');
         }
 
         // Kiểm tra mật khẩu
         const isPasswordValid = await user.comparePassword(password);
         if (!isPasswordValid) {
-            return res.status(401).json({
-                status: 'error',
-                message: 'Email hoặc mật khẩu không đúng'
-            });
+            return ApiResponse.unauthorized(res, 'Email hoặc mật khẩu không đúng');
         }
 
         // Tạo JWT
@@ -42,25 +34,19 @@ export const login = async (req: Request, res: Response) => {
         });
 
         // Trả về response
-        res.status(200).json({
-            status: 'success',
+        return ApiResponse.success(res, {
             token,
-            data: {
-                user: {
-                    id: user._id,
-                    username: user.username,
-                    email: user.email,
-                    avatar: user.avatar,
-                    role: user.role
-                }
+            user: {
+                id: user._id,
+                username: user.username,
+                email: user.email,
+                avatar: user.avatar,
+                role: user.role
             }
-        });
+        }, 'Đăng nhập thành công');
     } catch (error) {
         console.error('Login error:', error);
-        res.status(500).json({
-            status: 'error',
-            message: 'Lỗi server. Vui lòng thử lại sau.'
-        });
+        return ApiResponse.serverError(res);
     }
 };
 
@@ -71,19 +57,13 @@ export const register = async (req: Request, res: Response) => {
 
         // Validate input
         if (!username || !email || !password) {
-            return res.status(400).json({
-                status: 'error',
-                message: 'Vui lòng nhập đầy đủ thông tin'
-            });
+            return ApiResponse.badRequest(res, 'Vui lòng nhập đầy đủ thông tin');
         }
 
         // Kiểm tra email tồn tại
         const existingUser = await User.findOne({ email });
         if (existingUser) {
-            return res.status(400).json({
-                status: 'error',
-                message: 'Email đã được sử dụng'
-            });
+            return ApiResponse.conflict(res, 'Email đã được sử dụng');
         }
 
         // Tạo user mới
@@ -92,7 +72,8 @@ export const register = async (req: Request, res: Response) => {
             email,
             password
         });
-        console.log('New user registered:', user);  
+        console.log('New user registered:', user);
+
         // Tạo JWT
         const token = signToken({
             userId: user._id.toString(),
@@ -100,25 +81,19 @@ export const register = async (req: Request, res: Response) => {
         });
 
         // Trả về response
-        res.status(201).json({
-            status: 'success',
+        return ApiResponse.created(res, {
             token,
-            data: {
-                user: {
-                    id: user._id,
-                    username: user.username,
-                    email: user.email,
-                    avatar: user.avatar,
-                    role: user.role
-                }
+            user: {
+                id: user._id,
+                username: user.username,
+                email: user.email,
+                avatar: user.avatar,
+                role: user.role
             }
-        });
+        }, 'Đăng ký thành công');
     } catch (error) {
         console.error('Register error:', error);
-        res.status(500).json({
-            status: 'error',
-            message: 'Lỗi server. Vui lòng thử lại sau.'
-        });
+        return ApiResponse.serverError(res);
     }
 };
 
@@ -128,33 +103,24 @@ export const getProfile = async (req: Request, res: Response) => {
         // userId được thêm vào req bởi middleware protect
         const userId = (req as any).userId;
 
-        const user = await User.findById(userId).select('-password'); // Không trả về password
+        const user = await User.findById(userId).select('-password');
 
         if (!user) {
-            return res.status(404).json({
-                status: 'error',
-                message: 'Không tìm thấy người dùng'
-            });
+            return ApiResponse.notFound(res, 'Không tìm thấy người dùng');
         }
 
-        res.status(200).json({
-            status: 'success',
-            data: {
-                user: {
-                    id: user._id,
-                    username: user.username,
-                    email: user.email,
-                    avatar: user.avatar,
-                    role: user.role
-                }
+        return ApiResponse.success(res, {
+            user: {
+                id: user._id,
+                username: user.username,
+                email: user.email,
+                avatar: user.avatar,
+                role: user.role
             }
-        });
+        }, 'Lấy thông tin thành công');
     } catch (error) {
         console.error('Get profile error:', error);
-        res.status(500).json({
-            status: 'error',
-            message: 'Lỗi server. Vui lòng thử lại sau.'
-        });
+        return ApiResponse.serverError(res);
     }
 };
 
@@ -167,10 +133,7 @@ export const updateProfile = async (req: Request, res: Response) => {
 
         const user = await User.findById(userId);
         if (!user) {
-            return res.status(404).json({
-                status: 'error',
-                message: 'Không tìm thấy người dùng'
-            });
+            return ApiResponse.notFound(res, 'Không tìm thấy người dùng');
         }
 
         // Cập nhật thông tin cơ bản
@@ -179,11 +142,8 @@ export const updateProfile = async (req: Request, res: Response) => {
 
         // Cập nhật avatar nếu có file upload
         if (file) {
-            // Lưu đường dẫn file (ví dụ: /uploads/filename.jpg)
-            // Trong thực tế nên upload lên cloud (S3, Cloudinary)
             user.avatar = `http://localhost:6969/uploads/${file.filename}`;
         } else if (req.body.avatar && req.body.avatar.startsWith('http')) {
-            // Trường hợp user nhập URL ảnh trực tiếp (nếu hỗ trợ)
             user.avatar = req.body.avatar;
         }
 
@@ -191,34 +151,25 @@ export const updateProfile = async (req: Request, res: Response) => {
         if (oldPassword && newPassword) {
             const isMatch = await user.comparePassword(oldPassword);
             if (!isMatch) {
-                return res.status(400).json({
-                    status: 'error',
-                    message: 'Mật khẩu cũ không chính xác'
-                });
+                return ApiResponse.badRequest(res, 'Mật khẩu cũ không chính xác');
             }
             user.password = newPassword;
         }
 
         await user.save();
 
-        res.status(200).json({
-            status: 'success',
-            message: 'Cập nhật thông tin thành công',
-            data: {
-                user: {
-                    id: user._id,
-                    username: user.username,
-                    email: user.email,
-                    avatar: user.avatar
-                }
+        return ApiResponse.updated(res, {
+            user: {
+                id: user._id,
+                username: user.username,
+                email: user.email,
+                avatar: user.avatar
             }
-        });
+        }, 'Cập nhật thông tin thành công');
 
     } catch (error) {
         console.error('Update profile error:', error);
-        res.status(500).json({
-            status: 'error',
-            message: 'Lỗi server. Vui lòng thử lại sau.'
-        });
+        return ApiResponse.serverError(res);
     }
 };
+

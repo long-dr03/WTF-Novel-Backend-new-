@@ -14,7 +14,7 @@ export interface IChapter extends Document {
     chapterNumber: number;
     title: string;
     content: string;                    // HTML format - để render nhanh cho reader
-    contentJson: ITiptapContent;        // JSON format - để load lại vào editor khi edit
+    contentJson?: ITiptapContent | null; // JSON format - để load lại vào editor khi edit (optional cho Word import)
     wordCount: number;
     charCount: number;
     status: 'draft' | 'published' | 'scheduled';
@@ -46,7 +46,8 @@ const ChapterSchema: Schema = new Schema({
     },
     contentJson: {
         type: Schema.Types.Mixed,       // Lưu JSON object từ Tiptap
-        required: true
+        required: false,                // Optional - có thể không có khi import từ Word
+        default: null
     },
     wordCount: {
         type: Number,

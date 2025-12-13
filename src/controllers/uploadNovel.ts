@@ -3,6 +3,7 @@ import { Request, Response } from 'express';
 import Novel from '../models/Novel';
 import Chapter from '../models/Chapter';
 import mongoose from "mongoose";
+import ApiResponse from '../utils/apiResponse';
 
 // Map status từ tiếng Việt sang English
 const mapStatus = (status: string): 'ongoing' | 'completed' | 'hiatus' => {
@@ -17,17 +18,14 @@ const mapStatus = (status: string): 'ongoing' | 'completed' | 'hiatus' => {
     return statusMap[status] || 'ongoing';
 };
 
-// Cập nhật profile
+// Tạo truyện mới
 export const createNovel = async (req: Request, res: Response) => {
     try {
-        const data = req.body.data; // Lấy data từ req.body.data
+        const data = req.body.data;
         console.log("novel upload", data);
 
         if (!data || !data.title || !data.description || !data.author) {
-            return res.status(400).json({
-                status: 'error',
-                message: 'Thiếu thông tin bắt buộc: title, description, author'
-            });
+            return ApiResponse.badRequest(res, 'Thiếu thông tin bắt buộc: title, description, author');
         }
 
         // Xử lý genres - lọc bỏ empty strings
@@ -55,58 +53,41 @@ export const createNovel = async (req: Request, res: Response) => {
 
         console.log("novel mới đã lưu", novel);
 
-        return res.status(200).json({
-            EM: 'Tạo truyện thành công',
-            EC: 0,
-            DT: {
-                novelId: novel._id,
-                title: novel.title,
-                description: novel.description,
-                image: novel.image,
-                status: novel.status
-            }
-        });
+        return ApiResponse.created(res, {
+            novelId: novel._id,
+            title: novel.title,
+            description: novel.description,
+            image: novel.image,
+            status: novel.status
+        }, 'Tạo truyện thành công');
 
     } catch (error) {
         console.error('Create novel error:', error);
-        return res.status(500).json({
-            EM: 'Lỗi server. Vui lòng thử lại sau.',
-            EC: -1,
-            DT: {}
-        });
+        return ApiResponse.serverError(res);
     }
 };
+
 export const uploadChapter = async (req: Request, res: Response) => {
     try {
-        const data = req.body.data; // Lấy data từ req.body.data (giống createNovel)
+        const data = req.body.data;
         let chapter;
         
         if (!data || !data.novelId) {
-            return res.status(400).json({
-                EM: 'Thiếu thông tin novelId',
-                EC: -1,
-                DT: {}
-            });
+            return ApiResponse.badRequest(res, 'Thiếu thông tin novelId');
         }
         
         const novel = await Novel.findById(new mongoose.Types.ObjectId(data.novelId));
         console.log("novel found", data, "id", data.novelId);
         if (!novel) {
-            return res.status(404).json({
-                EM: 'Không tìm thấy truyện',
-                EC: -1,
-                DT: {}
-            });
+            return ApiResponse.notFound(res, 'Không tìm thấy truyện');
         }
 
         // Kiểm tra xem là tạo mới hay cập nhật
-        // Nếu có chapterId hoặc tìm thấy chương với cùng novelId và chapterNumber -> update
         let existingChapter = null;
         
         if (data.chapterId) {
             existingChapter = await Chapter.findById(data.chapterId);
         } else {
-            // Tìm chương theo novelId và chapterNumber
             existingChapter = await Chapter.findOne({
                 novelId: new mongoose.Types.ObjectId(data.novelId),
                 chapterNumber: data.chapterNumber
@@ -126,16 +107,12 @@ export const uploadChapter = async (req: Request, res: Response) => {
             chapter = existingChapter;
             
             console.log("Cập nhật chương:", chapter);
-            res.status(200).json({
-                EM: 'Cập nhật chương thành công',
-                EC: 0,
-                DT: {
-                    chapterId: chapter._id,
-                    novelId: data.novelId,
-                    chapterNumber: chapter.chapterNumber,
-                    isUpdate: true
-                }
-            });
+            return ApiResponse.updated(res, {
+                chapterId: chapter._id,
+                novelId: data.novelId,
+                chapterNumber: chapter.chapterNumber,
+                isUpdate: true
+            }, 'Cập nhật chương thành công');
         } else {
             // Tạo chương mới
             console.log("data", JSON.stringify(data));
@@ -152,25 +129,17 @@ export const uploadChapter = async (req: Request, res: Response) => {
             await chapter.save();
             
             console.log("Chap mới:", chapter);
-            res.status(200).json({
-                EM: 'Tạo chương thành công',
-                EC: 0,
-                DT: {
-                    chapterId: chapter._id,
-                    novelId: data.novelId,
-                    chapterNumber: chapter.chapterNumber,
-                    isUpdate: false
-                }
-            });
+            return ApiResponse.created(res, {
+                chapterId: chapter._id,
+                novelId: data.novelId,
+                chapterNumber: chapter.chapterNumber,
+                isUpdate: false
+            }, 'Tạo chương thành công');
         }
 
     } catch (error) {
         console.error('Upload chapter error:', error);
-        return res.status(500).json({
-            EM: 'Lỗi server. Vui lòng thử lại sau.',
-            EC: -1,
-            DT: {}
-        });
+        return ApiResponse.serverError(res);
     }
 };
 
@@ -181,28 +150,16 @@ export const updateChapterStatus = async (req: Request, res: Response) => {
         const { status } = req.body;
 
         if (!chapterId || !mongoose.Types.ObjectId.isValid(chapterId)) {
-            return res.status(400).json({
-                EM: 'ID chương không hợp lệ',
-                EC: -1,
-                DT: {}
-            });
+            return ApiResponse.badRequest(res, 'ID chương không hợp lệ');
         }
 
         if (!status || !['draft', 'published', 'scheduled'].includes(status)) {
-            return res.status(400).json({
-                EM: 'Trạng thái không hợp lệ. Các trạng thái hợp lệ: draft, published, scheduled',
-                EC: -1,
-                DT: {}
-            });
+            return ApiResponse.badRequest(res, 'Trạng thái không hợp lệ. Các trạng thái hợp lệ: draft, published, scheduled');
         }
 
         const chapter = await Chapter.findById(chapterId);
         if (!chapter) {
-            return res.status(404).json({
-                EM: 'Không tìm thấy chương',
-                EC: -1,
-                DT: {}
-            });
+            return ApiResponse.notFound(res, 'Không tìm thấy chương');
         }
 
         chapter.status = status;
@@ -211,22 +168,14 @@ export const updateChapterStatus = async (req: Request, res: Response) => {
         }
         await chapter.save();
 
-        res.status(200).json({
-            EM: 'Cập nhật trạng thái chương thành công',
-            EC: 0,
-            DT: {
-                chapterId: chapter._id,
-                status: chapter.status,
-                publishedAt: chapter.publishedAt
-            }
-        });
+        return ApiResponse.updated(res, {
+            chapterId: chapter._id,
+            status: chapter.status,
+            publishedAt: chapter.publishedAt
+        }, 'Cập nhật trạng thái chương thành công');
     } catch (error) {
         console.error('Update chapter status error:', error);
-        return res.status(500).json({
-            EM: 'Lỗi server. Vui lòng thử lại sau.',
-            EC: -1,
-            DT: {}
-        });
+        return ApiResponse.serverError(res);
     }
 };
 
@@ -237,47 +186,27 @@ export const updateNovelStatus = async (req: Request, res: Response) => {
         const { status } = req.body;
 
         if (!novelId || !mongoose.Types.ObjectId.isValid(novelId)) {
-            return res.status(400).json({
-                EM: 'ID truyện không hợp lệ',
-                EC: -1,
-                DT: {}
-            });
+            return ApiResponse.badRequest(res, 'ID truyện không hợp lệ');
         }
 
         if (!status || !['ongoing', 'completed', 'hiatus'].includes(status)) {
-            return res.status(400).json({
-                EM: 'Trạng thái không hợp lệ. Các trạng thái hợp lệ: ongoing, completed, hiatus',
-                EC: -1,
-                DT: {}
-            });
+            return ApiResponse.badRequest(res, 'Trạng thái không hợp lệ. Các trạng thái hợp lệ: ongoing, completed, hiatus');
         }
 
         const novel = await Novel.findById(novelId);
         if (!novel) {
-            return res.status(404).json({
-                EM: 'Không tìm thấy truyện',
-                EC: -1,
-                DT: {}
-            });
+            return ApiResponse.notFound(res, 'Không tìm thấy truyện');
         }
 
         novel.status = status;
         await novel.save();
 
-        res.status(200).json({
-            EM: 'Cập nhật trạng thái truyện thành công',
-            EC: 0,
-            DT: {
-                novelId: novel._id,
-                status: novel.status
-            }
-        });
+        return ApiResponse.updated(res, {
+            novelId: novel._id,
+            status: novel.status
+        }, 'Cập nhật trạng thái truyện thành công');
     } catch (error) {
         console.error('Update novel status error:', error);
-        return res.status(500).json({
-            EM: 'Lỗi server. Vui lòng thử lại sau.',
-            EC: -1,
-            DT: {}
-        });
+        return ApiResponse.serverError(res);
     }
 };

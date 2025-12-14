@@ -11,6 +11,7 @@ export const getNovelById = async (req: Request, res: Response) => {
         if (!novelId || !mongoose.Types.ObjectId.isValid(novelId)) {
             return ApiResponse.badRequest(res, 'ID truyện không hợp lệ');
         }
+        
         const novel = await Novel.findById(novelId)
             .populate('author', 'username avatar');
         if (!novel) {

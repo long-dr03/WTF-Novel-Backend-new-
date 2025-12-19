@@ -22,6 +22,12 @@ export interface IChapter extends Document {
     publishedAt?: Date;
     views: number;
     authorNote?: string;                // Ghi chú của tác giả cuối chương
+    // Audio/TTS fields
+    audioUrl?: string;                  // URL của file audio
+    audioStatus: 'none' | 'processing' | 'completed' | 'failed'; // Trạng thái audio
+    audioDuration?: number;             // Thời lượng audio (giây)
+    audioGeneratedAt?: Date;            // Thời gian tạo audio
+    audioSource?: 'upload' | 'tts';     // Nguồn audio: upload thủ công hoặc TTS AI
 }
 
 const ChapterSchema: Schema = new Schema({
@@ -81,6 +87,29 @@ const ChapterSchema: Schema = new Schema({
         type: String,
         maxlength: 1000,
         default: null
+    },
+    // Audio/TTS fields
+    audioUrl: {
+        type: String,
+        default: null
+    },
+    audioStatus: {
+        type: String,
+        enum: ['none', 'processing', 'completed', 'failed'],
+        default: 'none'
+    },
+    audioDuration: {
+        type: Number,
+        default: null
+    },
+    audioGeneratedAt: {
+        type: Date,
+        default: null
+    },
+    audioSource: {
+        type: String,
+        enum: ['upload', 'tts'],
+        default: null
     }
 }, {
     timestamps: true    // Tự động thêm createdAt và updatedAt
@@ -92,6 +121,7 @@ ChapterSchema.index({ novelId: 1, status: 1 }); // Query chapters by novel and s
 ChapterSchema.index({ status: 1, scheduledAt: 1 }); // Query scheduled chapters
 ChapterSchema.index({ publishedAt: -1 }); // Sort by publish date
 ChapterSchema.index({ views: -1 }); // Sort by views (popular chapters)
+ChapterSchema.index({ audioStatus: 1 }); // Query by audio status
 
 // Virtual để lấy thời gian đọc ước tính (200 từ/phút)
 ChapterSchema.virtual('readingTime').get(function(this: IChapter) {

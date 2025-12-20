@@ -5,6 +5,9 @@ import mongoose from 'mongoose';
 import ApiResponse from '../utils/apiResponse';
 import fs from 'fs';
 import path from 'path';
+import { UTApi } from 'uploadthing/server';
+
+const utapi = new UTApi({ token: process.env.UPLOADTHING_TOKEN });
 
 // Config TTS Service
 const TTS_SERVICE_URL = process.env.TTS_SERVICE_URL || 'http://localhost:5001';
@@ -29,7 +32,7 @@ interface BatchChapter {
 export const uploadChapterAudio = async (req: Request, res: Response) => {
     try {
         const { chapterId } = req.params;
-        
+
         if (!chapterId || !mongoose.Types.ObjectId.isValid(chapterId)) {
             return ApiResponse.badRequest(res, 'ID chapter không hợp lệ');
         }
@@ -54,12 +57,12 @@ export const uploadChapterAudio = async (req: Request, res: Response) => {
 
         // Cập nhật chapter với audio mới
         const audioUrl = `/uploads/audio/${req.file.filename}`;
-        
+
         chapter.audioUrl = audioUrl;
         chapter.audioStatus = 'completed';
         chapter.audioSource = 'upload';
         chapter.audioGeneratedAt = new Date();
-        
+
         // Lấy duration từ request nếu có
         if (req.body.duration) {
             chapter.audioDuration = parseFloat(req.body.duration);
@@ -86,7 +89,7 @@ export const uploadChapterAudio = async (req: Request, res: Response) => {
 export const generateChapterAudio = async (req: Request, res: Response) => {
     try {
         const { chapterId } = req.params;
-        
+
         if (!chapterId || !mongoose.Types.ObjectId.isValid(chapterId)) {
             return ApiResponse.badRequest(res, 'ID chapter không hợp lệ');
         }
@@ -121,11 +124,35 @@ export const generateChapterAudio = async (req: Request, res: Response) => {
 
             const result: TTSResult = await response.json();
 
-            if (result.success) {
-                chapter.audioUrl = result.audio_url;
+            if (result.success && result.output_file) {
+                // Local path from TTS service (assuming locally mounted or same disk)
+                const localFilename = result.output_file;
+                const localPath = path.join(__dirname, '../../uploads/audio', localFilename);
+
+                let finalAudioUrl = result.audio_url; // Default to local if upload fails
+
+                if (process.env.UPLOADTHING_TOKEN && fs.existsSync(localPath)) {
+                    try {
+                        const fileBuffer = fs.readFileSync(localPath);
+                        const file = new File([fileBuffer], localFilename);
+
+                        const utResponse = await utapi.uploadFiles([file]);
+
+                        if (utResponse[0]?.data?.url) {
+                            finalAudioUrl = utResponse[0].data.url;
+                            // Delete local file after successful upload
+                            fs.unlinkSync(localPath);
+                        }
+                    } catch (utError) {
+                        console.error('UploadThing upload failed:', utError);
+                        // Fallback to local URL is already set
+                    }
+                }
+
+                chapter.audioUrl = finalAudioUrl;
                 chapter.audioStatus = 'completed';
                 chapter.audioDuration = result.duration;
-                chapter.audioSource = 'tts';
+                chapter.audioSource = finalAudioUrl?.includes('uploadthing') ? 'uploadthing' : 'tts';
                 chapter.audioGeneratedAt = new Date();
             } else {
                 chapter.audioStatus = 'failed';
@@ -267,12 +294,34 @@ export const getBatchStatus = async (req: Request, res: Response) => {
         // Nếu job completed, cập nhật database
         if (result.status === 'completed' && result.results) {
             for (const chapterResult of result.results) {
-                if (chapterResult.success) {
+                if (chapterResult.success && chapterResult.output_file) {
+                    const localFilename = chapterResult.output_file;
+                    const localPath = path.join(__dirname, '../../uploads/audio', localFilename);
+                    let finalAudioUrl = `/uploads/audio/${localFilename}`;
+                    let source = 'tts';
+
+                    if (process.env.UPLOADTHING_TOKEN && fs.existsSync(localPath)) {
+                        try {
+                            const fileBuffer = fs.readFileSync(localPath);
+                            const file = new File([fileBuffer], localFilename);
+
+                            const utResponse = await utapi.uploadFiles([file]);
+
+                            if (utResponse[0]?.data?.url) {
+                                finalAudioUrl = utResponse[0].data.url;
+                                source = 'uploadthing';
+                                fs.unlinkSync(localPath);
+                            }
+                        } catch (utError) {
+                            console.error('Batch UploadThing upload failed:', utError);
+                        }
+                    }
+
                     await Chapter.findByIdAndUpdate(chapterResult.chapter_id, {
-                        audioUrl: `/uploads/audio/${chapterResult.output_file}`,
+                        audioUrl: finalAudioUrl,
                         audioStatus: 'completed',
                         audioDuration: chapterResult.duration,
-                        audioSource: 'tts',
+                        audioSource: source,
                         audioGeneratedAt: new Date()
                     });
                 } else {
@@ -298,7 +347,7 @@ export const getBatchStatus = async (req: Request, res: Response) => {
 export const deleteChapterAudio = async (req: Request, res: Response) => {
     try {
         const { chapterId } = req.params;
-        
+
         if (!chapterId || !mongoose.Types.ObjectId.isValid(chapterId)) {
             return ApiResponse.badRequest(res, 'ID chapter không hợp lệ');
         }
@@ -342,14 +391,14 @@ export const deleteChapterAudio = async (req: Request, res: Response) => {
 export const getChapterAudioInfo = async (req: Request, res: Response) => {
     try {
         const { chapterId } = req.params;
-        
+
         if (!chapterId || !mongoose.Types.ObjectId.isValid(chapterId)) {
             return ApiResponse.badRequest(res, 'ID chapter không hợp lệ');
         }
 
         const chapter = await Chapter.findById(chapterId)
             .select('audioUrl audioStatus audioDuration audioGeneratedAt audioSource chapterNumber title');
-        
+
         if (!chapter) {
             return ApiResponse.notFound(res, 'Không tìm thấy chapter');
         }
@@ -378,7 +427,7 @@ export const getChapterAudioInfo = async (req: Request, res: Response) => {
 export const getNovelAudioList = async (req: Request, res: Response) => {
     try {
         const { novelId } = req.params;
-        
+
         if (!novelId || !mongoose.Types.ObjectId.isValid(novelId)) {
             return ApiResponse.badRequest(res, 'ID novel không hợp lệ');
         }

@@ -27,7 +27,7 @@ export interface IChapter extends Document {
     audioStatus: 'none' | 'processing' | 'completed' | 'failed'; // Trạng thái audio
     audioDuration?: number;             // Thời lượng audio (giây)
     audioGeneratedAt?: Date;            // Thời gian tạo audio
-    audioSource?: 'upload' | 'tts';     // Nguồn audio: upload thủ công hoặc TTS AI
+    audioSource?: 'upload' | 'tts' | 'uploadthing';     // Nguồn audio: upload thủ công hoặc TTS AI
 }
 
 const ChapterSchema: Schema = new Schema({
@@ -108,7 +108,7 @@ const ChapterSchema: Schema = new Schema({
     },
     audioSource: {
         type: String,
-        enum: ['upload', 'tts'],
+        enum: ['upload', 'tts', 'uploadthing'],
         default: null
     }
 }, {
@@ -124,12 +124,12 @@ ChapterSchema.index({ views: -1 }); // Sort by views (popular chapters)
 ChapterSchema.index({ audioStatus: 1 }); // Query by audio status
 
 // Virtual để lấy thời gian đọc ước tính (200 từ/phút)
-ChapterSchema.virtual('readingTime').get(function(this: IChapter) {
+ChapterSchema.virtual('readingTime').get(function (this: IChapter) {
     return Math.ceil(this.wordCount / 200);
 });
 
 // Middleware: Tự động set publishedAt khi status chuyển sang published
-ChapterSchema.pre('save', function(next) {
+ChapterSchema.pre('save', function (next) {
     if (this.isModified('status') && this.status === 'published' && !this.publishedAt) {
         this.publishedAt = new Date();
     }

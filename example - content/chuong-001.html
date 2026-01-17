@@ -1,0 +1,304 @@
+<style>
+    .container {
+        max-width: 80rem;
+        width: 100%;
+    }
+
+    .section-header {
+        text-align: center;
+        margin-bottom: 4rem;
+    }
+
+    .section-title {
+        font-family: 'Space Grotesk', sans-serif;
+        font-size: 3rem;
+        font-weight: 700;
+        margin-bottom: 1.5rem;
+        color: hsl(0, 0%, 98%);
+    }
+
+    .section-subtitle {
+        font-size: 1.25rem;
+        color: hsl(0, 0%, 65%);
+        max-width: 48rem;
+        margin: 0 auto;
+    }
+
+    .chart-container {
+        margin-bottom: 5rem;
+        display: flex;
+        justify-content: center;
+    }
+
+    .chart-wrapper {
+        width: 100%;
+        max-width: 56rem;
+    }
+
+    canvas {
+        max-height: 500px;
+    }
+
+    /* =======================
+       FLEXBOX CARDS LAYOUT
+    ======================= */
+    .cards-grid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 2rem;
+            justify-content: center;
+    }
+
+    .card {
+        flex: 1 1 300px;
+        max-width: calc(50% - 1rem);
+        background-color: hsl(0, 0%, 13%);
+        border: 1px solid hsl(0, 0%, 18%);
+        border-radius: 8px;
+        padding: 2rem;
+        transition: border-color 0.2s ease;
+    }
+
+    .card:hover {
+        border-color: var(--hover-color);
+    }
+
+    .card-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        margin-bottom: 1rem;
+    }
+
+    .card-percentage {
+        font-family: 'Space Grotesk', sans-serif;
+        font-size: 1.875rem;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+    }
+
+    .card-title {
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: hsl(0, 0%, 98%);
+    }
+
+    .card-amount {
+        text-align: right;
+    }
+
+    .card-tokens {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: hsl(0, 0%, 98%);
+    }
+
+    .card-label {
+        font-size: 0.875rem;
+        color: hsl(0, 0%, 45%);
+    }
+
+    .card-description {
+        color: hsl(0, 0%, 65%);
+        line-height: 1.625;
+    }
+
+    /* ===== Card Colors ===== */
+    .card-1 {
+        --hover-color: hsl(268, 80%, 60%);
+    }
+
+    .card-1 .card-percentage {
+        color: hsl(268, 80%, 60%);
+    }
+
+    .card-2 {
+        --hover-color: hsl(268, 60%, 70%);
+    }
+
+    .card-2 .card-percentage {
+        color: hsl(268, 60%, 70%);
+    }
+
+    .card-3 {
+        --hover-color: hsl(195, 100%, 65%);
+    }
+
+    .card-3 .card-percentage {
+        color: hsl(195, 100%, 65%);
+    }
+
+    .card-4 {
+        --hover-color: hsl(160, 70%, 45%);
+    }
+
+    .card-4 .card-percentage {
+        color: hsl(160, 70%, 45%);
+    }
+
+    /* ===== Desktop lớn: 3 cột ===== */
+    @media (min-width: 1200px) {
+        .card {
+            max-width: calc(33.333% - 1.34rem);
+        }
+    }
+
+    /* ===== Mobile: 1 cột ===== */
+    @media (max-width: 768px) {
+        .cards-grid {
+            flex-direction: column;
+        }
+
+        .card {
+            max-width: 100%;
+            padding: 1rem;
+        }
+
+        .section-title {
+            font-size: 2.25rem;
+        }
+
+        .section-subtitle {
+            font-size: 0.875rem;
+        }
+
+        .card-title {
+            font-size: 1rem;
+        }
+
+        .card-tokens {
+            font-size: 1.5rem;
+        }
+
+        .card-label {
+            font-size: 0.875rem;
+        }
+
+        .card-description {
+            font-size: 0.875rem;
+        }
+
+        .card-header {
+            margin-bottom: 0.4rem;
+        }
+    }
+</style>
+
+<div class="container">
+
+    <!-- Chart Section -->
+    <div class="chart-container">
+        <div class="chart-wrapper">
+            <canvas id="allocationChart"></canvas>
+        </div>
+    </div>
+
+    <!-- Cards Flexbox -->
+    <div class="cards-grid">
+
+        <article class="card card-1">
+            <div class="card-header">
+                <div>
+                    <h2 class="card-percentage">40%</h2>
+                    <p class="card-title">Launchpool / Community Access</p>
+                </div>
+                <div class="card-amount">
+                    <p class="card-tokens">8,000,000</p>
+                    <p class="card-label">SQUID2</p>
+                </div>
+            </div>
+            <p class="card-description">
+                Fair distribution to early supporters via launch access and community engagement rewards.
+            </p>
+        </article>
+
+        <article class="card card-2">
+            <div class="card-header">
+                <div>
+                    <h2 class="card-percentage">25%</h2>
+                    <p class="card-title">CEX Liquidity</p>
+                </div>
+                <div class="card-amount">
+                    <p class="card-tokens">5,000,000</p>
+                    <p class="card-label">SQUID2</p>
+                </div>
+            </div>
+            <p class="card-description">
+                Dedicated liquidity to support future centralized exchange activity and trading accessibility.
+            </p>
+        </article>
+
+        <article class="card card-3">
+            <div class="card-header">
+                <div>
+                    <h2 class="card-percentage">25%</h2>
+                    <p class="card-title">DEX Liquidity</p>
+                </div>
+                <div class="card-amount">
+                    <p class="card-tokens">5,000,000</p>
+                    <p class="card-label">SQUID2</p>
+                </div>
+            </div>
+            <p class="card-description">
+                Supports decentralized trading availability from launch.
+            </p>
+        </article>
+
+        <article class="card card-4">
+            <div class="card-header">
+                <div>
+                    <h2 class="card-percentage">10%</h2>
+                    <p class="card-title">Reserve / The Game Treasury</p>
+                </div>
+                <div class="card-amount">
+                    <p class="card-tokens">2,000,000</p>
+                    <p class="card-label">SQUID2</p>
+                </div>
+            </div>
+            <p class="card-description">
+                Reserved for development, prize pools, utility grants, and team vesting—under a strict vesting schedule.
+            </p>
+        </article>
+
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+    const ctx = document.getElementById('allocationChart');
+
+    new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: [
+                'Launchpool / Community Access',
+                'CEX Liquidity',
+                'DEX Liquidity',
+                'Reserve / The Game Treasury'
+            ],
+            datasets: [{
+                data: [40, 25, 25, 10],
+                backgroundColor: [
+                    'hsl(268, 80%, 60%)',
+                    'hsl(268, 60%, 70%)',
+                    'hsl(195, 100%, 65%)',
+                    'hsl(160, 70%, 45%)'
+                ],
+                borderWidth: 2,
+                hoverOffset: 15
+            }]
+        },
+        options: {
+            responsive: true,
+            cutout: '65%',
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        color: '#fff'
+                    }
+                }
+            }
+        }
+    });
+</script>

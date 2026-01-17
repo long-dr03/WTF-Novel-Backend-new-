@@ -10,7 +10,7 @@ import { UTApi } from 'uploadthing/server';
 const utapi = new UTApi({ token: process.env.UPLOADTHING_TOKEN });
 
 // Config TTS Service
-const TTS_SERVICE_URL = process.env.TTS_SERVICE_URL || 'http://localhost:5001';
+const TTS_SERVICE_URL = process.env.TTS_SERVICE_URL || 'http://127.0.0.1:5001';
 
 interface TTSResult {
     success: boolean;
@@ -272,7 +272,69 @@ export const batchGenerateAudio = async (req: Request, res: Response) => {
 
     } catch (error) {
         console.error('Batch generate error:', error);
-        return ApiResponse.serverError(res, 'Lỗi khi xử lý batch TTS');
+        if (error instanceof Error) {
+            console.error('Error stack:', error.stack);
+        }
+        return ApiResponse.serverError(res, 'Lỗi khi xử lý batch TTS: ' + (error instanceof Error ? error.message : String(error)));
+    }
+};
+
+/**
+ * Hàm xử lý upload background (Fire-and-forget)
+ */
+const processBatchUploads = async (results: any[]) => {
+    for (const result of results) {
+        if (!result.chapter_id) continue;
+
+        try {
+            const chapter = await Chapter.findById(result.chapter_id);
+            if (!chapter) continue;
+
+            // Nếu đã upload xong hoặc failed thì bỏ qua
+            if (chapter.audioSource === 'uploadthing' || chapter.audioStatus === 'failed') {
+                continue;
+            }
+
+            if (result.success && result.output_file) {
+                const localFilename = result.output_file;
+                const localPath = path.join(__dirname, '../../uploads/audio', localFilename);
+                let finalAudioUrl = `/uploads/audio/${localFilename}`;
+                let source = 'tts';
+
+                // Chỉ upload nếu có token và file tồn tại
+                if (process.env.UPLOADTHING_TOKEN && fs.existsSync(localPath)) {
+                    try {
+                        const fileBuffer = fs.readFileSync(localPath);
+                        const file = new File([fileBuffer], localFilename);
+                        const utResponse = await utapi.uploadFiles([file]);
+
+                        if (utResponse[0]?.data?.url) {
+                            finalAudioUrl = utResponse[0].data.url;
+                            source = 'uploadthing';
+                            fs.unlinkSync(localPath); // Xóa file sau khi upload
+                        }
+                    } catch (utError) {
+                        console.error(`Upload error for chapter ${chapter.chapterNumber}:`, utError);
+                    }
+                }
+
+                // Cập nhật DB
+                await Chapter.findByIdAndUpdate(result.chapter_id, {
+                    audioUrl: finalAudioUrl,
+                    audioStatus: 'completed',
+                    audioDuration: result.duration,
+                    audioSource: source,
+                    audioGeneratedAt: new Date()
+                });
+            } else {
+                // Đánh dấu failed nếu TTS thất bại
+                await Chapter.findByIdAndUpdate(result.chapter_id, {
+                    audioStatus: 'failed'
+                });
+            }
+        } catch (err) {
+            console.error(`Error processing chapter ${result.chapter_id}:`, err);
+        }
     }
 };
 
@@ -291,47 +353,44 @@ export const getBatchStatus = async (req: Request, res: Response) => {
             return ApiResponse.notFound(res, 'Không tìm thấy job');
         }
 
-        // Nếu job completed, cập nhật database
+        // Nếu TTS Service đã hoàn thành, kiểm tra tiến độ Upload
         if (result.status === 'completed' && result.results) {
-            for (const chapterResult of result.results) {
-                if (chapterResult.success && chapterResult.output_file) {
-                    const localFilename = chapterResult.output_file;
-                    const localPath = path.join(__dirname, '../../uploads/audio', localFilename);
-                    let finalAudioUrl = `/uploads/audio/${localFilename}`;
-                    let source = 'tts';
+            // Trigger background upload (không await)
+            processBatchUploads(result.results);
 
-                    if (process.env.UPLOADTHING_TOKEN && fs.existsSync(localPath)) {
-                        try {
-                            const fileBuffer = fs.readFileSync(localPath);
-                            const file = new File([fileBuffer], localFilename);
+            // Tính toán tiến độ thực tế dựa trên DB
+            const chapterIds = result.results.map((r: any) => r.chapter_id);
+            const total = chapterIds.length;
+            
+            const completedCount = await Chapter.countDocuments({
+                _id: { $in: chapterIds },
+                $or: [
+                    { audioSource: 'uploadthing' },
+                    { audioStatus: 'failed' }
+                ]
+            });
 
-                            const utResponse = await utapi.uploadFiles([file]);
-
-                            if (utResponse[0]?.data?.url) {
-                                finalAudioUrl = utResponse[0].data.url;
-                                source = 'uploadthing';
-                                fs.unlinkSync(localPath);
-                            }
-                        } catch (utError) {
-                            console.error('Batch UploadThing upload failed:', utError);
-                        }
-                    }
-
-                    await Chapter.findByIdAndUpdate(chapterResult.chapter_id, {
-                        audioUrl: finalAudioUrl,
-                        audioStatus: 'completed',
-                        audioDuration: chapterResult.duration,
-                        audioSource: source,
-                        audioGeneratedAt: new Date()
-                    });
-                } else {
-                    await Chapter.findByIdAndUpdate(chapterResult.chapter_id, {
-                        audioStatus: 'failed'
-                    });
-                }
+            // Nếu chưa upload xong hết -> Vẫn trả về processing để Frontend tiếp tục poll
+            if (completedCount < total) {
+                const uploadProgress = Math.floor((completedCount / total) * 100);
+                return ApiResponse.success(res, {
+                    ...result,
+                    status: 'processing', // Ghi đè status thành processing chừng nào chưa upload xong
+                    progress: uploadProgress,
+                    message: `Đang đồng bộ lên cloud: ${completedCount}/${total}`
+                }, 'Đang xử lý upload');
             }
+
+            // Nếu đã xong hết -> Trả về completed
+            return ApiResponse.success(res, {
+                ...result,
+                status: 'completed',
+                progress: 100,
+                message: 'Hoàn tất xử lý và đồng bộ'
+            }, 'Batch hoàn tất');
         }
 
+        // Nếu TTS vẫn đang chạy
         return ApiResponse.success(res, result, 'Lấy trạng thái batch thành công');
 
     } catch (error) {

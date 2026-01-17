@@ -6,8 +6,8 @@ const cors = require('cors');
 const app = express();
 
 const corsOptions = {
-    origin: ["http://localhost:3000", "https://wtfnovel.wtfdev.qzz.io"], // Allowed origins
-    credentials: true, // Allow cookies and authorization headers
+    origin: "https://wtfnovel.wtfdev.qzz.io",
+    credentials: true,
     optionsSuccessStatus: 200,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],

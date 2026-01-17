@@ -6,7 +6,7 @@ const cors = require('cors');
 const app = express();
 
 const corsOptions = {
-    origin: "https://wtfnovel.wtfdev.qzz.io",
+    origin: ["http://localhost:3000", "https://wtf-novel.vercel.app"],
     credentials: true,
     optionsSuccessStatus: 200,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],

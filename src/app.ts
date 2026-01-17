@@ -6,7 +6,7 @@ const cors = require('cors');
 const app = express();
 
 const corsOptions = {
-    origin: "http://localhost:3000", // Next.js frontend URL
+    origin: ["http://localhost:3000", "https://wtfnovel.wtfdev.qzz.io"], // Allowed origins
     credentials: true, // Allow cookies and authorization headers
     optionsSuccessStatus: 200,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],

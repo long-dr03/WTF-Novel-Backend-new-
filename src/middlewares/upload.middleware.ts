@@ -2,7 +2,6 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 
-// Đảm bảo thư mục uploads tồn tại
 const uploadDir = 'uploads';
 if (!fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir);
@@ -26,10 +25,13 @@ const fileFilter = (req: any, file: any, cb: any) => {
     }
 };
 
+/**
+ * Middleware xử lý upload file ảnh (giới hạn 5MB)
+ */
 export const upload = multer({
     storage: storage,
     fileFilter: fileFilter,
     limits: {
-        fileSize: 5 * 1024 * 1024 // Giới hạn 5MB
+        fileSize: 5 * 1024 * 1024
     }
 });

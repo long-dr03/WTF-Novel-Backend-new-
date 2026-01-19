@@ -4,7 +4,6 @@ import { connectDB } from './config/database';
 
 const PORT = process.env.PORT || 3000;
 
-// Kết nối database trước khi start server
 connectDB().then(() => {
     app.listen(Number(PORT), '0.0.0.0', () => {
         console.log(`🚀 Server is running on port ${PORT}`);

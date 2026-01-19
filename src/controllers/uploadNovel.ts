@@ -1,11 +1,9 @@
-// src/config/controllers/authentication.ts
 import { Request, Response } from 'express';
 import Novel from '../models/Novel';
 import Chapter from '../models/Chapter';
 import mongoose from "mongoose";
 import ApiResponse from '../utils/apiResponse';
 
-// Map status từ tiếng Việt sang English
 const mapStatus = (status: string): 'ongoing' | 'completed' | 'hiatus' => {
     const statusMap: Record<string, 'ongoing' | 'completed' | 'hiatus'> = {
         'Đang viết': 'ongoing',
@@ -18,7 +16,11 @@ const mapStatus = (status: string): 'ongoing' | 'completed' | 'hiatus' => {
     return statusMap[status] || 'ongoing';
 };
 
-// Tạo truyện mới
+/**
+ * Tạo mới một đầu truyện (Novel)
+ * @param req Request chứa thông tin truyện trong body.data
+ * @param res Response trả về kết quả
+ */
 export const createNovel = async (req: Request, res: Response) => {
     try {
         const data = req.body.data;
@@ -28,10 +30,8 @@ export const createNovel = async (req: Request, res: Response) => {
             return ApiResponse.badRequest(res, 'Thiếu thông tin bắt buộc: title, description, author');
         }
 
-        // Xử lý genres - lọc bỏ empty strings
         const validGenres = (data.genres || []).filter((g: string) => g && g.trim() !== '');
 
-        // Xử lý image - nếu là blob URL thì dùng default
         let imageUrl = data.image;
         if (!imageUrl || imageUrl.startsWith('blob:')) {
             imageUrl = 'https://cdn-icons-png.flaticon.com/512/149/149071.png';
@@ -67,24 +67,28 @@ export const createNovel = async (req: Request, res: Response) => {
     }
 };
 
+/**
+ * Tạo mới hoặc cập nhật một chương (Chapter) của truyện
+ * @param req Request chứa thông tin chương trong body.data (novelId, chapterNumber, content, etc.)
+ * @param res Response trả về kết quả
+ */
 export const uploadChapter = async (req: Request, res: Response) => {
     try {
         const data = req.body.data;
         let chapter;
-        
+
         if (!data || !data.novelId) {
             return ApiResponse.badRequest(res, 'Thiếu thông tin novelId');
         }
-        
+
         const novel = await Novel.findById(new mongoose.Types.ObjectId(data.novelId));
         console.log("novel found", data, "id", data.novelId);
         if (!novel) {
             return ApiResponse.notFound(res, 'Không tìm thấy truyện');
         }
 
-        // Kiểm tra xem là tạo mới hay cập nhật
         let existingChapter = null;
-        
+
         if (data.chapterId) {
             existingChapter = await Chapter.findById(data.chapterId);
         } else {
@@ -95,17 +99,16 @@ export const uploadChapter = async (req: Request, res: Response) => {
         }
 
         if (existingChapter) {
-            // Update chương cũ
             existingChapter.title = data.title;
             existingChapter.content = data.content;
             existingChapter.contentJson = data.contentJson;
             existingChapter.wordCount = data.wordCount;
             existingChapter.charCount = data.charCount;
             existingChapter.status = data.status || existingChapter.status;
-            
+
             await existingChapter.save();
             chapter = existingChapter;
-            
+
             console.log("Cập nhật chương:", chapter);
             return ApiResponse.updated(res, {
                 chapterId: chapter._id,
@@ -114,7 +117,6 @@ export const uploadChapter = async (req: Request, res: Response) => {
                 isUpdate: true
             }, 'Cập nhật chương thành công');
         } else {
-            // Tạo chương mới
             console.log("data", JSON.stringify(data));
             chapter = new Chapter({
                 novelId: new mongoose.Types.ObjectId(data.novelId),
@@ -127,7 +129,7 @@ export const uploadChapter = async (req: Request, res: Response) => {
                 status: data.status || 'draft'
             });
             await chapter.save();
-            
+
             console.log("Chap mới:", chapter);
             return ApiResponse.created(res, {
                 chapterId: chapter._id,
@@ -143,7 +145,11 @@ export const uploadChapter = async (req: Request, res: Response) => {
     }
 };
 
-// Cập nhật trạng thái chương
+/**
+ * Cập nhật trạng thái của một chương (draft, published, scheduled)
+ * @param req Request chứa status mới
+ * @param res Response trả về kết quả
+ */
 export const updateChapterStatus = async (req: Request, res: Response) => {
     try {
         const { chapterId } = req.params;
@@ -179,7 +185,11 @@ export const updateChapterStatus = async (req: Request, res: Response) => {
     }
 };
 
-// Cập nhật trạng thái truyện
+/**
+ * Cập nhật trạng thái của truyện (ongoing, completed, hiatus)
+ * @param req Request chứa status mới
+ * @param res Response trả về kết quả
+ */
 export const updateNovelStatus = async (req: Request, res: Response) => {
     try {
         const { novelId } = req.params;

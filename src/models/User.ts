@@ -37,11 +37,9 @@ const UserSchema: Schema = new Schema({
     timestamps: true
 });
 
-// Indexes for optimization
 UserSchema.index({ username: 1 });
 UserSchema.index({ role: 1 });
 
-// Hash password before saving
 UserSchema.pre<IUser>('save', async function (next) {
     if (!this.isModified('password')) return next;
     try {
@@ -53,7 +51,10 @@ UserSchema.pre<IUser>('save', async function (next) {
     }
 });
 
-// Method to compare password
+/**
+ * So sánh password được nhập với password hash trong DB
+ * @param candidatePassword Password cần kiểm tra
+ */
 UserSchema.methods.comparePassword = async function (candidatePassword: string): Promise<boolean> {
     return bcrypt.compare(candidatePassword, this.password);
 };

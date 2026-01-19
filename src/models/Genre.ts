@@ -30,7 +30,6 @@ const GenreSchema: Schema = new Schema({
     timestamps: true
 });
 
-// Index for slug lookups
 GenreSchema.index({ slug: 1 });
 
 export default mongoose.model<IGenre>('Genre', GenreSchema);

@@ -2,7 +2,6 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 
-// Đảm bảo thư mục uploads/audio tồn tại
 const audioUploadDir = 'uploads/audio';
 if (!fs.existsSync(audioUploadDir)) {
     fs.mkdirSync(audioUploadDir, { recursive: true });
@@ -13,7 +12,6 @@ const audioStorage = multer.diskStorage({
         cb(null, audioUploadDir);
     },
     filename: function (req, file, cb) {
-        // Format: audio-{chapterId}-{timestamp}.{ext}
         const chapterId = req.params.chapterId || 'unknown';
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
         const ext = path.extname(file.originalname).toLowerCase();
@@ -22,17 +20,16 @@ const audioStorage = multer.diskStorage({
 });
 
 const audioFileFilter = (req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
-    // Chấp nhận các định dạng audio phổ biến
     const allowedMimes = [
-        'audio/mpeg',       // .mp3
+        'audio/mpeg',
         'audio/mp3',
-        'audio/wav',        // .wav
+        'audio/wav',
         'audio/wave',
         'audio/x-wav',
-        'audio/ogg',        // .ogg
-        'audio/flac',       // .flac
-        'audio/aac',        // .aac
-        'audio/m4a',        // .m4a
+        'audio/ogg',
+        'audio/flac',
+        'audio/aac',
+        'audio/m4a',
         'audio/x-m4a',
         'audio/mp4'
     ];
@@ -47,15 +44,17 @@ const audioFileFilter = (req: any, file: Express.Multer.File, cb: multer.FileFil
     }
 };
 
+/**
+ * Middleware xử lý upload file audio (giới hạn 100MB)
+ */
 export const audioUpload = multer({
     storage: audioStorage,
     fileFilter: audioFileFilter,
     limits: {
-        fileSize: 100 * 1024 * 1024 // Giới hạn 100MB cho audio
+        fileSize: 100 * 1024 * 1024
     }
 });
 
-// Export cấu hình để có thể sử dụng ở nơi khác
 export const AUDIO_CONFIG = {
     uploadDir: audioUploadDir,
     maxFileSize: 100 * 1024 * 1024,

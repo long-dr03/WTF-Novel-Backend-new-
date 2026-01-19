@@ -50,11 +50,10 @@ const NovelSchema: Schema = new Schema({
     timestamps: true
 });
 
-// Indexes for optimization
-NovelSchema.index({ title: 'text' }); // Text search
+NovelSchema.index({ title: 'text' });
 NovelSchema.index({ author: 1 });
 NovelSchema.index({ genres: 1 });
 NovelSchema.index({ status: 1 });
-NovelSchema.index({ views: -1, createdAt: -1 }); // Compound index for sorting by popularity
+NovelSchema.index({ views: -1, createdAt: -1 });
 
 export default mongoose.model<INovel>('Novel', NovelSchema);

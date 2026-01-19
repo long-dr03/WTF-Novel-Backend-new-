@@ -7,7 +7,8 @@ import {
     deleteChapterAudio,
     getChapterAudioInfo,
     getNovelAudioList,
-    checkTTSHealth
+    checkTTSHealth,
+    updateChapterAudioUrl
 } from '../controllers/tts.controller';
 import { audioUpload } from '../middlewares/audioUpload.middleware';
 import { protect } from '../middlewares/auth.middleware';
@@ -24,6 +25,9 @@ router.get('/chapter/:chapterId/audio', getChapterAudioInfo);
 
 // POST /chapter/:chapterId/audio/upload - Upload audio file cho chapter
 router.post('/chapter/:chapterId/audio/upload', protect, audioUpload.single('audio'), uploadChapterAudio);
+
+// POST /chapter/:chapterId/audio/url - Cập nhật audio URL (UploadThing)
+router.post('/chapter/:chapterId/audio/url', protect, updateChapterAudioUrl);
 
 // POST /chapter/:chapterId/audio/generate - Generate audio bằng TTS AI
 router.post('/chapter/:chapterId/audio/generate', protect, generateChapterAudio);

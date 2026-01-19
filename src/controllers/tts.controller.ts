@@ -9,7 +9,6 @@ import { UTApi } from 'uploadthing/server';
 
 const utapi = new UTApi({ token: process.env.UPLOADTHING_TOKEN });
 
-// Config TTS Service
 const TTS_SERVICE_URL = process.env.TTS_SERVICE_URL || 'http://127.0.0.1:5001';
 
 interface TTSResult {
@@ -26,8 +25,9 @@ interface BatchChapter {
 }
 
 /**
- * Upload audio file cho một chapter
- * POST /chapter/:chapterId/audio/upload
+ * Upload audio file thủ công cho một chapter
+ * @param req Request chứa chapterId và file audio
+ * @param res Response trả về thông tin audio đã upload
  */
 export const uploadChapterAudio = async (req: Request, res: Response) => {
     try {
@@ -42,12 +42,10 @@ export const uploadChapterAudio = async (req: Request, res: Response) => {
             return ApiResponse.notFound(res, 'Không tìm thấy chapter');
         }
 
-        // Kiểm tra file upload
         if (!req.file) {
             return ApiResponse.badRequest(res, 'Vui lòng upload file audio');
         }
 
-        // Xóa file audio cũ nếu có
         if (chapter.audioUrl) {
             const oldFilePath = path.join(__dirname, '../../uploads', chapter.audioUrl.replace('/uploads/', ''));
             if (fs.existsSync(oldFilePath)) {
@@ -55,7 +53,6 @@ export const uploadChapterAudio = async (req: Request, res: Response) => {
             }
         }
 
-        // Cập nhật chapter với audio mới
         const audioUrl = `/uploads/audio/${req.file.filename}`;
 
         chapter.audioUrl = audioUrl;
@@ -63,7 +60,6 @@ export const uploadChapterAudio = async (req: Request, res: Response) => {
         chapter.audioSource = 'upload';
         chapter.audioGeneratedAt = new Date();
 
-        // Lấy duration từ request nếu có
         if (req.body.duration) {
             chapter.audioDuration = parseFloat(req.body.duration);
         }
@@ -83,8 +79,9 @@ export const uploadChapterAudio = async (req: Request, res: Response) => {
 };
 
 /**
- * Generate audio cho một chapter bằng TTS
- * POST /chapter/:chapterId/audio/generate
+ * Tạo audio cho một chapter bằng TTS Service (Single)
+ * @param req Request chứa chapterId
+ * @param res Response trả về kết quả tạo audio
  */
 export const generateChapterAudio = async (req: Request, res: Response) => {
     try {
@@ -99,17 +96,14 @@ export const generateChapterAudio = async (req: Request, res: Response) => {
             return ApiResponse.notFound(res, 'Không tìm thấy chapter');
         }
 
-        // Kiểm tra nếu đang xử lý
         if (chapter.audioStatus === 'processing') {
             return ApiResponse.badRequest(res, 'Chapter đang được xử lý TTS');
         }
 
-        // Cập nhật status sang processing
         chapter.audioStatus = 'processing';
         await chapter.save();
 
         try {
-            // Gọi TTS Service
             const response = await fetch(`${TTS_SERVICE_URL}/tts/single`, {
                 method: 'POST',
                 headers: {
@@ -125,11 +119,10 @@ export const generateChapterAudio = async (req: Request, res: Response) => {
             const result: TTSResult = await response.json();
 
             if (result.success && result.output_file) {
-                // Local path from TTS service (assuming locally mounted or same disk)
                 const localFilename = result.output_file;
                 const localPath = path.join(__dirname, '../../uploads/audio', localFilename);
 
-                let finalAudioUrl = result.audio_url; // Default to local if upload fails
+                let finalAudioUrl = result.audio_url;
 
                 if (process.env.UPLOADTHING_TOKEN && fs.existsSync(localPath)) {
                     try {
@@ -140,12 +133,10 @@ export const generateChapterAudio = async (req: Request, res: Response) => {
 
                         if (utResponse[0]?.data?.url) {
                             finalAudioUrl = utResponse[0].data.url;
-                            // Delete local file after successful upload
                             fs.unlinkSync(localPath);
                         }
                     } catch (utError) {
                         console.error('UploadThing upload failed:', utError);
-                        // Fallback to local URL is already set
                     }
                 }
 
@@ -183,8 +174,9 @@ export const generateChapterAudio = async (req: Request, res: Response) => {
 };
 
 /**
- * Generate audio hàng loạt cho nhiều chapters
- * POST /novel/:novelId/audio/batch-generate
+ * Tạo audio hàng loạt cho danh sách chapter trong tiểu thuyết
+ * @param req Request chứa novelId và danh sách chapterIds hoặc range (from/to)
+ * @param res Response trả về job_id để kiểm tra tiến độ
  */
 export const batchGenerateAudio = async (req: Request, res: Response) => {
     try {
@@ -202,21 +194,18 @@ export const batchGenerateAudio = async (req: Request, res: Response) => {
 
         let chapters;
 
-        // Nếu có danh sách chapterIds cụ thể
         if (chapterIds && Array.isArray(chapterIds) && chapterIds.length > 0) {
             chapters = await Chapter.find({
                 _id: { $in: chapterIds },
                 novelId: novelId
             }).sort({ chapterNumber: 1 });
         }
-        // Nếu có range từ chapter đến chapter
         else if (fromChapter !== undefined && toChapter !== undefined) {
             chapters = await Chapter.find({
                 novelId: novelId,
                 chapterNumber: { $gte: fromChapter, $lte: toChapter }
             }).sort({ chapterNumber: 1 });
         }
-        // Mặc định lấy tất cả chapters chưa có audio
         else {
             chapters = await Chapter.find({
                 novelId: novelId,
@@ -228,19 +217,16 @@ export const batchGenerateAudio = async (req: Request, res: Response) => {
             return ApiResponse.badRequest(res, 'Không có chapter nào để xử lý');
         }
 
-        // Chuẩn bị data cho batch
         const batchChapters: BatchChapter[] = chapters.map(ch => ({
             chapter_id: ch._id.toString(),
             content: ch.content
         }));
 
-        // Cập nhật tất cả chapters sang processing
         await Chapter.updateMany(
             { _id: { $in: chapters.map(ch => ch._id) } },
             { audioStatus: 'processing' }
         );
 
-        // Gọi TTS Service batch
         const response = await fetch(`${TTS_SERVICE_URL}/tts/batch`, {
             method: 'POST',
             headers: {
@@ -262,7 +248,6 @@ export const batchGenerateAudio = async (req: Request, res: Response) => {
                 message: result.message
             }, 'Đã bắt đầu xử lý batch TTS');
         } else {
-            // Rollback status nếu lỗi
             await Chapter.updateMany(
                 { _id: { $in: chapters.map(ch => ch._id) } },
                 { audioStatus: 'none' }
@@ -280,7 +265,8 @@ export const batchGenerateAudio = async (req: Request, res: Response) => {
 };
 
 /**
- * Hàm xử lý upload background (Fire-and-forget)
+ * Xử lý background upload cho batch job sau khi TTS hoàn tất
+ * @param results Danh sách kết quả từ TTS service
  */
 const processBatchUploads = async (results: any[]) => {
     for (const result of results) {
@@ -290,7 +276,6 @@ const processBatchUploads = async (results: any[]) => {
             const chapter = await Chapter.findById(result.chapter_id);
             if (!chapter) continue;
 
-            // Nếu đã upload xong hoặc failed thì bỏ qua
             if (chapter.audioSource === 'uploadthing' || chapter.audioStatus === 'failed') {
                 continue;
             }
@@ -301,7 +286,6 @@ const processBatchUploads = async (results: any[]) => {
                 let finalAudioUrl = `/uploads/audio/${localFilename}`;
                 let source = 'tts';
 
-                // Chỉ upload nếu có token và file tồn tại
                 if (process.env.UPLOADTHING_TOKEN && fs.existsSync(localPath)) {
                     try {
                         const fileBuffer = fs.readFileSync(localPath);
@@ -311,14 +295,13 @@ const processBatchUploads = async (results: any[]) => {
                         if (utResponse[0]?.data?.url) {
                             finalAudioUrl = utResponse[0].data.url;
                             source = 'uploadthing';
-                            fs.unlinkSync(localPath); // Xóa file sau khi upload
+                            fs.unlinkSync(localPath);
                         }
                     } catch (utError) {
                         console.error(`Upload error for chapter ${chapter.chapterNumber}:`, utError);
                     }
                 }
 
-                // Cập nhật DB
                 await Chapter.findByIdAndUpdate(result.chapter_id, {
                     audioUrl: finalAudioUrl,
                     audioStatus: 'completed',
@@ -327,7 +310,6 @@ const processBatchUploads = async (results: any[]) => {
                     audioGeneratedAt: new Date()
                 });
             } else {
-                // Đánh dấu failed nếu TTS thất bại
                 await Chapter.findByIdAndUpdate(result.chapter_id, {
                     audioStatus: 'failed'
                 });
@@ -339,8 +321,9 @@ const processBatchUploads = async (results: any[]) => {
 };
 
 /**
- * Kiểm tra trạng thái batch job
- * GET /audio/batch-status/:jobId
+ * Kiểm tra trạng thái của job xử lý audio hàng loạt
+ * @param req Request chứa jobId
+ * @param res Response trả về trạng thái và tiến độ
  */
 export const getBatchStatus = async (req: Request, res: Response) => {
     try {
@@ -353,15 +336,12 @@ export const getBatchStatus = async (req: Request, res: Response) => {
             return ApiResponse.notFound(res, 'Không tìm thấy job');
         }
 
-        // Nếu TTS Service đã hoàn thành, kiểm tra tiến độ Upload
         if (result.status === 'completed' && result.results) {
-            // Trigger background upload (không await)
             processBatchUploads(result.results);
 
-            // Tính toán tiến độ thực tế dựa trên DB
             const chapterIds = result.results.map((r: any) => r.chapter_id);
             const total = chapterIds.length;
-            
+
             const completedCount = await Chapter.countDocuments({
                 _id: { $in: chapterIds },
                 $or: [
@@ -370,18 +350,16 @@ export const getBatchStatus = async (req: Request, res: Response) => {
                 ]
             });
 
-            // Nếu chưa upload xong hết -> Vẫn trả về processing để Frontend tiếp tục poll
             if (completedCount < total) {
                 const uploadProgress = Math.floor((completedCount / total) * 100);
                 return ApiResponse.success(res, {
                     ...result,
-                    status: 'processing', // Ghi đè status thành processing chừng nào chưa upload xong
+                    status: 'processing',
                     progress: uploadProgress,
                     message: `Đang đồng bộ lên cloud: ${completedCount}/${total}`
                 }, 'Đang xử lý upload');
             }
 
-            // Nếu đã xong hết -> Trả về completed
             return ApiResponse.success(res, {
                 ...result,
                 status: 'completed',
@@ -390,7 +368,6 @@ export const getBatchStatus = async (req: Request, res: Response) => {
             }, 'Batch hoàn tất');
         }
 
-        // Nếu TTS vẫn đang chạy
         return ApiResponse.success(res, result, 'Lấy trạng thái batch thành công');
 
     } catch (error) {
@@ -400,8 +377,9 @@ export const getBatchStatus = async (req: Request, res: Response) => {
 };
 
 /**
- * Xóa audio của một chapter
- * DELETE /chapter/:chapterId/audio
+ * Xóa file audio của một chương
+ * @param req Request chứa chapterId
+ * @param res Response trả về kết quả
  */
 export const deleteChapterAudio = async (req: Request, res: Response) => {
     try {
@@ -420,13 +398,11 @@ export const deleteChapterAudio = async (req: Request, res: Response) => {
             return ApiResponse.badRequest(res, 'Chapter chưa có audio');
         }
 
-        // Xóa file audio
         const filePath = path.join(__dirname, '../../uploads', chapter.audioUrl.replace('/uploads/', ''));
         if (fs.existsSync(filePath)) {
             fs.unlinkSync(filePath);
         }
 
-        // Reset audio fields
         chapter.audioUrl = undefined;
         chapter.audioStatus = 'none';
         chapter.audioDuration = undefined;
@@ -444,8 +420,9 @@ export const deleteChapterAudio = async (req: Request, res: Response) => {
 };
 
 /**
- * Lấy thông tin audio của chapter
- * GET /chapter/:chapterId/audio
+ * Lấy thông tin audio chi tiết của một chương
+ * @param req Request chứa chapterId
+ * @param res Response trả về thông tin audio
  */
 export const getChapterAudioInfo = async (req: Request, res: Response) => {
     try {
@@ -480,8 +457,9 @@ export const getChapterAudioInfo = async (req: Request, res: Response) => {
 };
 
 /**
- * Lấy danh sách audio của tất cả chapters trong novel
- * GET /novel/:novelId/audio
+ * Lấy danh sách thống kê audio của toàn bộ chương trong tiểu thuyết
+ * @param req Request chứa novelId
+ * @param res Response trả về danh sách và thống kê
  */
 export const getNovelAudioList = async (req: Request, res: Response) => {
     try {
@@ -516,8 +494,9 @@ export const getNovelAudioList = async (req: Request, res: Response) => {
 };
 
 /**
- * Kiểm tra TTS Service health
- * GET /audio/health
+ * Kiểm tra trạng thái hoạt động của TTS Service
+ * @param req Request
+ * @param res Response trả về status service
  */
 export const checkTTSHealth = async (req: Request, res: Response) => {
     try {
@@ -531,5 +510,51 @@ export const checkTTSHealth = async (req: Request, res: Response) => {
 
     } catch (error) {
         return ApiResponse.serverError(res, 'TTS Service không hoạt động');
+    }
+};
+
+/**
+ * Cập nhật URL audio cho chương (thường dùng cho callback hoặc manual update)
+ * @param req Request chứa audioUrl và duration
+ * @param res Response trả về thông tin cập nhật
+ */
+export const updateChapterAudioUrl = async (req: Request, res: Response) => {
+    try {
+        const { chapterId } = req.params;
+        const { audioUrl, duration } = req.body;
+
+        if (!chapterId || !mongoose.Types.ObjectId.isValid(chapterId)) {
+            return ApiResponse.badRequest(res, 'ID chapter không hợp lệ');
+        }
+
+        if (!audioUrl) {
+            return ApiResponse.badRequest(res, 'Vui lòng cung cấp audio URL');
+        }
+
+        const chapter = await Chapter.findById(chapterId);
+        if (!chapter) {
+            return ApiResponse.notFound(res, 'Không tìm thấy chapter');
+        }
+
+        chapter.audioUrl = audioUrl;
+        chapter.audioStatus = 'completed';
+        chapter.audioSource = 'uploadthing';
+        chapter.audioGeneratedAt = new Date();
+
+        if (duration) {
+            chapter.audioDuration = duration;
+        }
+
+        await chapter.save();
+
+        return ApiResponse.success(res, {
+            audioUrl: chapter.audioUrl,
+            audioStatus: chapter.audioStatus,
+            audioDuration: chapter.audioDuration
+        }, 'Cập nhật audio URL thành công');
+
+    } catch (error) {
+        console.error('Update audio URL error:', error);
+        return ApiResponse.serverError(res, 'Lỗi khi cập nhật audio URL');
     }
 };

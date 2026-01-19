@@ -1,39 +1,37 @@
-// src/config/controllers/authentication.ts
 import { Request, Response } from 'express';
 import { signToken } from '../variables/jwt';
 import User from '../models/User';
 import ApiResponse from '../utils/apiResponse';
 
-// Đăng nhập
+/**
+ * Đăng nhập người dùng
+ * @param req Request chứa email/valueLogin và password
+ * @param res Response trả về token và thông tin user
+ */
 export const login = async (req: Request, res: Response) => {
     try {
         const { email, password, valueLogin } = req.body;
 
-        // Kiểm tra input
         const loginValue = email || valueLogin;
         if (!loginValue || !password) {
             return ApiResponse.badRequest(res, 'Vui lòng nhập đầy đủ email và mật khẩu');
         }
 
-        // Tìm user
         const user = await User.findOne({ email: loginValue });
         if (!user) {
             return ApiResponse.unauthorized(res, 'Email hoặc mật khẩu không đúng');
         }
 
-        // Kiểm tra mật khẩu
         const isPasswordValid = await user.comparePassword(password);
         if (!isPasswordValid) {
             return ApiResponse.unauthorized(res, 'Email hoặc mật khẩu không đúng');
         }
 
-        // Tạo JWT
         const token = signToken({
             userId: user._id.toString(),
             email: user.email
         });
 
-        // Trả về response
         return ApiResponse.success(res, {
             token,
             user: {
@@ -50,23 +48,24 @@ export const login = async (req: Request, res: Response) => {
     }
 };
 
-// Đăng ký
+/**
+ * Đăng ký tài khoản người dùng mới
+ * @param req Request chứa username, email, password
+ * @param res Response trả về token và thông tin user mới
+ */
 export const register = async (req: Request, res: Response) => {
     try {
         const { username, email, password } = req.body;
 
-        // Validate input
         if (!username || !email || !password) {
             return ApiResponse.badRequest(res, 'Vui lòng nhập đầy đủ thông tin');
         }
 
-        // Kiểm tra email tồn tại
         const existingUser = await User.findOne({ email });
         if (existingUser) {
             return ApiResponse.conflict(res, 'Email đã được sử dụng');
         }
 
-        // Tạo user mới
         const user = await User.create({
             username,
             email,
@@ -74,13 +73,11 @@ export const register = async (req: Request, res: Response) => {
         });
         console.log('New user registered:', user);
 
-        // Tạo JWT
         const token = signToken({
             userId: user._id.toString(),
             email: user.email
         });
 
-        // Trả về response
         return ApiResponse.created(res, {
             token,
             user: {
@@ -97,10 +94,13 @@ export const register = async (req: Request, res: Response) => {
     }
 };
 
-// Lấy thông tin profile
+/**
+ * Lấy thông tin người dùng đang đăng nhập
+ * @param req Request chứa userId (từ middleware auth)
+ * @param res Response trả về thông tin user (trừ password)
+ */
 export const getProfile = async (req: Request, res: Response) => {
     try {
-        // userId được thêm vào req bởi middleware protect
         const userId = (req as any).userId;
 
         const user = await User.findById(userId).select('-password');
@@ -124,7 +124,11 @@ export const getProfile = async (req: Request, res: Response) => {
     }
 };
 
-// Cập nhật profile
+/**
+ * Cập nhật thông tin người dùng
+ * @param req Request chứa thông tin cần cập nhật (username, email, password, avatar)
+ * @param res Response trả về thông tin user mới
+ */
 export const updateProfile = async (req: Request, res: Response) => {
     try {
         const userId = (req as any).userId;
@@ -136,18 +140,15 @@ export const updateProfile = async (req: Request, res: Response) => {
             return ApiResponse.notFound(res, 'Không tìm thấy người dùng');
         }
 
-        // Cập nhật thông tin cơ bản
         if (username) user.username = username;
         if (email) user.email = email;
 
-        // Cập nhật avatar nếu có file upload
         if (file) {
             user.avatar = `http://localhost:6969/uploads/${file.filename}`;
         } else if (req.body.avatar && req.body.avatar.startsWith('http')) {
             user.avatar = req.body.avatar;
         }
 
-        // Đổi mật khẩu
         if (oldPassword && newPassword) {
             const isMatch = await user.comparePassword(oldPassword);
             if (!isMatch) {

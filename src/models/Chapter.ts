@@ -1,6 +1,5 @@
 import mongoose, { Schema, Document } from 'mongoose';
 
-// Interface cho JSON content từ Tiptap Editor
 export interface ITiptapContent {
     type: string;
     content?: ITiptapContent[];
@@ -13,21 +12,21 @@ export interface IChapter extends Document {
     novelId: mongoose.Types.ObjectId;
     chapterNumber: number;
     title: string;
-    content: string;                    // HTML format - để render nhanh cho reader
-    contentJson?: ITiptapContent | null; // JSON format - để load lại vào editor khi edit (optional cho Word import)
+    content: string;
+    contentJson?: ITiptapContent | null;
     wordCount: number;
     charCount: number;
     status: 'draft' | 'published' | 'scheduled';
-    scheduledAt?: Date;                 // Thời gian đăng theo lịch (nếu status = scheduled)
+    scheduledAt?: Date;
     publishedAt?: Date;
     views: number;
-    authorNote?: string;                // Ghi chú của tác giả cuối chương
-    // Audio/TTS fields
-    audioUrl?: string;                  // URL của file audio
-    audioStatus: 'none' | 'processing' | 'completed' | 'failed'; // Trạng thái audio
-    audioDuration?: number;             // Thời lượng audio (giây)
-    audioGeneratedAt?: Date;            // Thời gian tạo audio
-    audioSource?: 'upload' | 'tts' | 'uploadthing';     // Nguồn audio: upload thủ công hoặc TTS AI
+    authorNote?: string;
+    audioUrl?: string;
+    audioStatus: 'none' | 'processing' | 'completed' | 'failed';
+    audioDuration?: number;
+    audioGeneratedAt?: Date;
+    audioSource?: 'upload' | 'tts' | 'uploadthing';
+    backgroundMusic?: mongoose.Types.ObjectId;
 }
 
 const ChapterSchema: Schema = new Schema({
@@ -51,8 +50,8 @@ const ChapterSchema: Schema = new Schema({
         required: true
     },
     contentJson: {
-        type: Schema.Types.Mixed,       // Lưu JSON object từ Tiptap
-        required: false,                // Optional - có thể không có khi import từ Word
+        type: Schema.Types.Mixed,
+        required: false,
         default: null
     },
     wordCount: {
@@ -88,7 +87,6 @@ const ChapterSchema: Schema = new Schema({
         maxlength: 1000,
         default: null
     },
-    // Audio/TTS fields
     audioUrl: {
         type: String,
         default: null
@@ -110,25 +108,27 @@ const ChapterSchema: Schema = new Schema({
         type: String,
         enum: ['upload', 'tts', 'uploadthing'],
         default: null
+    },
+    backgroundMusic: {
+        type: Schema.Types.ObjectId,
+        ref: 'Music',
+        default: null
     }
 }, {
-    timestamps: true    // Tự động thêm createdAt và updatedAt
+    timestamps: true
 });
 
-// Indexes for optimization
-ChapterSchema.index({ novelId: 1, chapterNumber: 1 }, { unique: true }); // Compound unique index
-ChapterSchema.index({ novelId: 1, status: 1 }); // Query chapters by novel and status
-ChapterSchema.index({ status: 1, scheduledAt: 1 }); // Query scheduled chapters
-ChapterSchema.index({ publishedAt: -1 }); // Sort by publish date
-ChapterSchema.index({ views: -1 }); // Sort by views (popular chapters)
-ChapterSchema.index({ audioStatus: 1 }); // Query by audio status
+ChapterSchema.index({ novelId: 1, chapterNumber: 1 }, { unique: true });
+ChapterSchema.index({ novelId: 1, status: 1 });
+ChapterSchema.index({ status: 1, scheduledAt: 1 });
+ChapterSchema.index({ publishedAt: -1 });
+ChapterSchema.index({ views: -1 });
+ChapterSchema.index({ audioStatus: 1 });
 
-// Virtual để lấy thời gian đọc ước tính (200 từ/phút)
 ChapterSchema.virtual('readingTime').get(function (this: IChapter) {
     return Math.ceil(this.wordCount / 200);
 });
 
-// Middleware: Tự động set publishedAt khi status chuyển sang published
 ChapterSchema.pre('save', function (next) {
     if (this.isModified('status') && this.status === 'published' && !this.publishedAt) {
         this.publishedAt = new Date();

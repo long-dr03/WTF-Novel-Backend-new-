@@ -7,6 +7,7 @@ export interface IUser extends Document {
     avatar: string;
     password: string;
     role: string;
+    isBanned: boolean;
     comparePassword(candidatePassword: string): Promise<boolean>;
 }
 
@@ -29,6 +30,10 @@ const UserSchema: Schema = new Schema({
         enum: ['user', 'admin', 'author'],
         default: 'user'
     },
+    isBanned: {
+        type: Boolean,
+        default: false
+    },
     password: {
         type: String,
         required: true
@@ -39,6 +44,7 @@ const UserSchema: Schema = new Schema({
 
 UserSchema.index({ username: 1 });
 UserSchema.index({ role: 1 });
+UserSchema.index({ isBanned: 1 });
 
 UserSchema.pre<IUser>('save', async function (next) {
     if (!this.isModified('password')) return next;

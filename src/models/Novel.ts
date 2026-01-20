@@ -7,6 +7,8 @@ export interface INovel extends Document {
     author: mongoose.Types.ObjectId;
     genres: mongoose.Types.ObjectId[];
     status: 'ongoing' | 'completed' | 'hiatus';
+    publishStatus: 'pending' | 'published' | 'rejected';
+    isFeatured: boolean;
     views: number;
     likes: number;
 }
@@ -38,6 +40,15 @@ const NovelSchema: Schema = new Schema({
         enum: ['ongoing', 'completed', 'hiatus'],
         default: 'ongoing'
     },
+    publishStatus: {
+        type: String,
+        enum: ['pending', 'published', 'rejected'],
+        default: 'pending'
+    },
+    isFeatured: {
+        type: Boolean,
+        default: false
+    },
     views: {
         type: Number,
         default: 0
@@ -54,6 +65,7 @@ NovelSchema.index({ title: 'text' });
 NovelSchema.index({ author: 1 });
 NovelSchema.index({ genres: 1 });
 NovelSchema.index({ status: 1 });
+NovelSchema.index({ publishStatus: 1 });
 NovelSchema.index({ views: -1, createdAt: -1 });
 
 export default mongoose.model<INovel>('Novel', NovelSchema);

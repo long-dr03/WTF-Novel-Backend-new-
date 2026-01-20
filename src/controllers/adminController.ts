@@ -1,0 +1,272 @@
+import { Request, Response } from 'express';
+import User from '../models/User';
+import Novel from '../models/Novel';
+import Genre from '../models/Genre';
+
+// --- Dashboard Stats ---
+export const getDashboardStats = async (req: Request, res: Response) => {
+    try {
+        const totalUsers = await User.countDocuments();
+        const totalNovels = await Novel.countDocuments();
+        const totalGenres = await Genre.countDocuments();
+
+        // Calculate total views (aggregate sum of views from all novels)
+        const viewsResult = await Novel.aggregate([
+            { $group: { _id: null, totalViews: { $sum: "$views" } } }
+        ]);
+        const totalViews = viewsResult.length > 0 ? viewsResult[0].totalViews : 0;
+
+        res.status(200).json({
+            totalUsers,
+            totalNovels,
+            totalGenres,
+            totalViews
+        });
+    } catch (error) {
+        res.status(500).json({ message: 'Lỗi khi lấy thống kê dashboard', error });
+    }
+};
+
+// --- User Management ---
+export const getUsers = async (req: Request, res: Response) => {
+    try {
+        const { page = 1, limit = 10, search = '' } = req.query;
+        const query: any = {};
+
+        if (search) {
+            query.$or = [
+                { username: { $regex: search, $options: 'i' } },
+                { email: { $regex: search, $options: 'i' } }
+            ];
+        }
+
+        const users = await User.find(query)
+            .limit(Number(limit))
+            .skip((Number(page) - 1) * Number(limit))
+            .select('-password'); // Exclude password
+
+        const total = await User.countDocuments(query);
+
+        res.status(200).json({
+            users,
+            total,
+            page: Number(page),
+            pages: Math.ceil(total / Number(limit))
+        });
+    } catch (error) {
+        res.status(500).json({ message: 'Lỗi khi lấy danh sách người dùng', error });
+    }
+};
+
+export const updateUserStatus = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const { isBanned, role } = req.body;
+
+        const updateData: any = {};
+        if (isBanned !== undefined) updateData.isBanned = isBanned;
+        if (role) updateData.role = role;
+
+        const user = await User.findByIdAndUpdate(id, updateData, { new: true }).select('-password');
+
+        if (!user) {
+            return res.status(404).json({ message: 'Không tìm thấy người dùng' });
+        }
+
+        res.status(200).json({ message: 'Cập nhật trạng thái người dùng thành công', user });
+    } catch (error) {
+        res.status(500).json({ message: 'Lỗi khi cập nhật người dùng', error });
+    }
+};
+
+// --- Novel Management ---
+export const getNovels = async (req: Request, res: Response) => {
+    try {
+        const { page = 1, limit = 10, status, search } = req.query;
+        const query: any = {};
+
+        if (status) query.publishStatus = status;
+        if (search) query.title = { $regex: search, $options: 'i' };
+
+        const novels = await Novel.find(query)
+            .populate('author', 'username email')
+            .populate('genres', 'name')
+            .limit(Number(limit))
+            .skip((Number(page) - 1) * Number(limit))
+            .sort({ createdAt: -1 });
+
+        const total = await Novel.countDocuments(query);
+
+        res.status(200).json({
+            novels,
+            total,
+            page: Number(page),
+            pages: Math.ceil(total / Number(limit))
+        });
+    } catch (error) {
+        res.status(500).json({ message: 'Lỗi khi lấy danh sách truyện', error });
+    }
+};
+
+export const approveNovel = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const novel = await Novel.findByIdAndUpdate(
+            id,
+            { publishStatus: 'published' },
+            { new: true }
+        );
+
+        if (!novel) return res.status(404).json({ message: 'Không tìm thấy truyện' });
+
+        res.status(200).json({ message: 'Đã duyệt truyện thành công', novel });
+    } catch (error) {
+        res.status(500).json({ message: 'Lỗi khi duyệt truyện', error });
+    }
+};
+
+export const rejectNovel = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const novel = await Novel.findByIdAndUpdate(
+            id,
+            { publishStatus: 'rejected' },
+            { new: true }
+        );
+
+        if (!novel) return res.status(404).json({ message: 'Không tìm thấy truyện' });
+
+        res.status(200).json({ message: 'Đã từ chối truyện', novel });
+    } catch (error) {
+        res.status(500).json({ message: 'Lỗi khi từ chối truyện', error });
+    }
+};
+
+
+export const toggleFeatured = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const novel = await Novel.findById(id);
+
+        if (!novel) return res.status(404).json({ message: 'Không tìm thấy truyện' });
+
+        novel.isFeatured = !novel.isFeatured;
+        await novel.save();
+
+        res.status(200).json({
+            message: `Đã ${novel.isFeatured ? 'thêm vào' : 'xóa khỏi'} danh sách nổi bật`,
+            novel
+        });
+    } catch (error) {
+        res.status(500).json({ message: 'Lỗi khi cập nhật trạng thái nổi bật', error });
+    }
+};
+
+export const deleteNovel = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const novel = await Novel.findByIdAndDelete(id);
+
+        if (!novel) return res.status(404).json({ message: 'Không tìm thấy truyện' });
+
+        res.status(200).json({ message: 'Đã xóa truyện thành công' });
+    } catch (error) {
+        res.status(500).json({ message: 'Lỗi khi xóa truyện', error });
+    }
+};
+
+// --- Genre Management ---
+export const getGenres = async (req: Request, res: Response) => {
+    try {
+        const genres = await Genre.find().sort({ name: 1 });
+        res.status(200).json(genres);
+    } catch (error) {
+        res.status(500).json({ message: 'Lỗi khi lấy danh sách thể loại', error });
+    }
+};
+
+export const createGenre = async (req: Request, res: Response) => {
+    try {
+        const { name, description, slug } = req.body;
+
+        // Simple validation
+        if (!name || !slug) {
+            return res.status(400).json({ message: 'Tên và Slug là bắt buộc' });
+        }
+
+        const existingGenre = await Genre.findOne({ slug });
+        if (existingGenre) {
+            return res.status(400).json({ message: 'Slug thể loại đã tồn tại' });
+        }
+
+        const newGenre = new Genre({ name, description, slug });
+        await newGenre.save();
+
+        res.status(201).json(newGenre);
+    } catch (error) {
+        res.status(500).json({ message: 'Lỗi khi tạo thể loại mới', error });
+    }
+};
+
+export const updateGenre = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const { name, description, slug } = req.body;
+
+        const genre = await Genre.findByIdAndUpdate(
+            id,
+            { name, description, slug },
+            { new: true }
+        );
+
+        if (!genre) return res.status(404).json({ message: 'Không tìm thấy thể loại' });
+
+        res.status(200).json(genre);
+    } catch (error) {
+        res.status(500).json({ message: 'Lỗi khi cập nhật thể loại', error });
+    }
+};
+
+export const deleteGenre = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        // Check if genre is used? (Optional: prevent delete if used)
+
+        const genre = await Genre.findByIdAndDelete(id);
+        if (!genre) return res.status(404).json({ message: 'Không tìm thấy thể loại' });
+
+        res.status(200).json({ message: 'Đã xóa thể loại' });
+    } catch (error) {
+        res.status(500).json({ message: 'Lỗi khi xóa thể loại', error });
+    }
+};
+
+// --- Settings Management ---
+export const getSettings = async (req: Request, res: Response) => {
+    try {
+        let settings = await import('../models/Setting').then(m => m.default.findOne());
+        if (!settings) {
+            settings = await import('../models/Setting').then(m => m.default.create({}));
+        }
+        res.status(200).json(settings);
+    } catch (error) {
+        res.status(500).json({ message: 'Lỗi khi lấy cài đặt', error });
+    }
+};
+
+export const updateSettings = async (req: Request, res: Response) => {
+    try {
+        const Setting = (await import('../models/Setting')).default;
+        let settings = await Setting.findOne();
+        if (!settings) {
+            settings = new Setting(req.body);
+            await settings.save();
+        } else {
+            Object.assign(settings, req.body);
+            await settings.save();
+        }
+        res.status(200).json(settings);
+    } catch (error) {
+        res.status(500).json({ message: 'Lỗi khi cập nhật cài đặt', error });
+    }
+};

@@ -1,4 +1,5 @@
 import Novel from "../models/Novel";
+import Genre from "../models/Genre";
 import Chapter from "../models/Chapter";
 import mongoose from "mongoose";
 import { Request, Response } from "express";
@@ -50,14 +51,14 @@ export const getNovelsByAuthor = async (req: Request, res: Response) => {
 }
 
 /**
- * Lấy danh sách truyện phổ biến (dựa trên lượt xem)
+ * Lấy danh sách truyện phổ biến (dựa trên lượt xem) - Chỉ lấy truyện đã xuất bản
  * @param req Request chứa limit (số lượng) trong query
  * @param res Response trả về danh sách truyện
  */
 export const getPopularNovels = async (req: Request, res: Response) => {
     try {
         const limit = parseInt(req.query.limit as string) || 10;
-        const novels = await Novel.find()
+        const novels = await Novel.find({ publishStatus: 'published' })
             .sort({ views: -1 })
             .limit(limit)
             .populate('author', 'username avatar');
@@ -65,6 +66,86 @@ export const getPopularNovels = async (req: Request, res: Response) => {
     } catch (error) {
         console.error('Get popular novels error:', error);
         return ApiResponse.serverError(res, 'Lỗi khi lấy danh sách truyện phổ biến');
+    }
+}
+
+/**
+ * Lấy danh sách truyện công khai (Hỗ trợ lọc, tìm kiếm, phân trang)
+ * @param req Request chứa page, limit, search, genre, isFeatured, sort
+ * @param res Response trả về danh sách truyện
+ */
+export const getPublicNovels = async (req: Request, res: Response) => {
+    try {
+        const page = parseInt(req.query.page as string) || 1;
+        const limit = parseInt(req.query.limit as string) || 12;
+        const search = req.query.search as string;
+        const genre = req.query.genre as string;
+        const isFeatured = req.query.isFeatured === 'true';
+
+        const query: any = { publishStatus: 'published' };
+
+        if (search) {
+            query.title = { $regex: search, $options: 'i' };
+        }
+
+        if (genre) {
+            if (mongoose.Types.ObjectId.isValid(genre)) {
+                query.genres = genre;
+            } else {
+                // Look up genre by slug (using imported Genre model, need to import if not present or use dynamic import)
+                // Dynamic import to avoid circular dep if any, or just import at top. 
+                // Assuming Genre model is needed.
+                const genreDoc = await Genre.findOne({ slug: genre });
+                if (genreDoc) {
+                    query.genres = genreDoc._id;
+                } else {
+                    // If genre slug not found, maybe return empty or ignore?
+                    // Return empty to be safe (no novels for non-existent genre)
+                    return ApiResponse.success(res, { novels: [], total: 0, page, pages: 0 }, 'Genre not found');
+                }
+            }
+        }
+
+        if (isFeatured) {
+            query.isFeatured = true;
+        }
+
+        const novels = await Novel.find(query)
+            .populate('author', 'username avatar')
+            .populate('genres', 'name slug')
+            .sort({ isFeatured: -1, createdAt: -1 }) // Featured first, then newest
+            .skip((page - 1) * limit)
+            .limit(limit);
+
+        const total = await Novel.countDocuments(query);
+
+        return ApiResponse.success(res, {
+            novels,
+            total,
+            page,
+            pages: Math.ceil(total / limit)
+        }, 'Lấy danh sách truyện thành công');
+    } catch (error) {
+        console.error('Get public novels error:', error);
+        return ApiResponse.serverError(res, 'Lỗi khi lấy danh sách truyện');
+    }
+}
+
+/**
+ * Láy danh sách tất cả thể loại (Public)
+ */
+export const getPublicGenres = async (req: Request, res: Response) => {
+    try {
+        // Need to import Genre model. 
+        // Dynamic import to be safe or add import at top if I can edit top.
+        // Since I'm using replace_file_content heavily, I'll assume Genre import was added in previous turn step 242.
+        // It was added: import Genre from "../models/Genre";
+
+        const genres = await Genre.find().sort({ name: 1 });
+        return ApiResponse.success(res, genres, 'Lấy danh sách thể loại thành công');
+    } catch (error) {
+        console.error('Get genres error:', error);
+        return ApiResponse.serverError(res, 'Lỗi khi lấy danh sách thể loại');
     }
 }
 

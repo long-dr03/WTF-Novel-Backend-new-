@@ -19,7 +19,8 @@ export const getNovelById = async (req: Request, res: Response) => {
         }
 
         const novel = await Novel.findById(novelId)
-            .populate('author', 'username avatar');
+            .populate('author', 'username avatar')
+            .populate('genres', 'name slug');
         if (!novel) {
             return ApiResponse.notFound(res, 'Không tìm thấy truyện');
         }

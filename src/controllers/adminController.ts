@@ -187,7 +187,7 @@ export const getGenres = async (req: Request, res: Response) => {
 
 export const createGenre = async (req: Request, res: Response) => {
     try {
-        const { name, description, slug } = req.body;
+        const { name, description, slug, image } = req.body;
 
         // Simple validation
         if (!name || !slug) {
@@ -199,11 +199,14 @@ export const createGenre = async (req: Request, res: Response) => {
             return res.status(400).json({ message: 'Slug thể loại đã tồn tại' });
         }
 
-        const newGenre = new Genre({ name, description, slug });
+        const newGenre = new Genre({ name, description, slug, image });
         await newGenre.save();
 
         res.status(201).json(newGenre);
-    } catch (error) {
+    } catch (error: any) {
+        if (error.code === 11000) {
+            return res.status(400).json({ message: 'Tên thể loại hoặc slug đã tồn tại' });
+        }
         res.status(500).json({ message: 'Lỗi khi tạo thể loại mới', error });
     }
 };
@@ -211,18 +214,21 @@ export const createGenre = async (req: Request, res: Response) => {
 export const updateGenre = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
-        const { name, description, slug } = req.body;
+        const { name, description, slug, image } = req.body;
 
         const genre = await Genre.findByIdAndUpdate(
             id,
-            { name, description, slug },
+            { name, description, slug, image },
             { new: true }
         );
 
         if (!genre) return res.status(404).json({ message: 'Không tìm thấy thể loại' });
 
         res.status(200).json(genre);
-    } catch (error) {
+    } catch (error: any) {
+        if (error.code === 11000) {
+            return res.status(400).json({ message: 'Tên thể loại hoặc slug đã tồn tại' });
+        }
         res.status(500).json({ message: 'Lỗi khi cập nhật thể loại', error });
     }
 };
@@ -238,6 +244,36 @@ export const deleteGenre = async (req: Request, res: Response) => {
         res.status(200).json({ message: 'Đã xóa thể loại' });
     } catch (error) {
         res.status(500).json({ message: 'Lỗi khi xóa thể loại', error });
+    }
+};
+
+export const seedGenres = async (req: Request, res: Response) => {
+    try {
+        const seedGenresData = [
+            { name: 'Tiên Hiệp', slug: 'tien-hiep', description: 'Thể loại tu tiên, tu luyện, với những câu chuyện về việc tìm kiếm đạo và trường sinh' },
+            { name: 'Huyền Huyễn', slug: 'huyen-huyen', description: 'Thể loại giả tưởng phương Đông với ma pháp, võ công và những yếu tố huyền bí' },
+            { name: 'Đô Thị', slug: 'do-thi', description: 'Thể loại đời thường trong bối cảnh đô thị hiện đại' },
+            { name: 'Hệ Thống', slug: 'he-thong', description: 'Nhân vật chính nhận được hệ thống hỗ trợ với nhiệm vụ và phần thưởng' },
+            { name: 'Trọng Sinh', slug: 'trong-sinh', description: 'Nhân vật chính được trở về quá khứ để sống lại cuộc đời' },
+            { name: 'Xuyên Không', slug: 'xuyen-khong', description: 'Nhân vật di chuyển qua không gian hoặc thời gian sang thế giới khác' },
+            { name: 'Ngôn Tình', slug: 'ngon-tinh', description: 'Thể loại tình cảm, lãng mạn' },
+            { name: 'Kiếm Hiệp', slug: 'kiem-hiep', description: 'Thể loại võ hiệp cổ điển với giang hồ, kiếm pháp' },
+            { name: 'Khoa Huyễn', slug: 'khoa-huyen', description: 'Thể loại khoa học viễn tưởng' },
+            { name: 'Đồng Nhân', slug: 'dong-nhan', description: 'Truyện dựa trên các tác phẩm gốc đã có' }
+        ];
+
+        // Clear existing genres
+        await Genre.deleteMany({});
+
+        // Insert seed genres
+        const inserted = await Genre.insertMany(seedGenresData);
+
+        res.status(200).json({
+            message: `Đã thêm ${inserted.length} thể loại mẫu`,
+            genres: inserted
+        });
+    } catch (error) {
+        res.status(500).json({ message: 'Lỗi khi seed thể loại', error });
     }
 };
 

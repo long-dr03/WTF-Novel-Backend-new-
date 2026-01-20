@@ -25,6 +25,7 @@ router.delete('/novels/:id', adminController.deleteNovel);
 // Genre Management
 router.get('/genres', adminController.getGenres);
 router.post('/genres', adminController.createGenre);
+router.post('/genres/seed', adminController.seedGenres);
 router.put('/genres/:id', adminController.updateGenre);
 router.delete('/genres/:id', adminController.deleteGenre);
 

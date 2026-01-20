@@ -30,7 +30,10 @@ export const createNovel = async (req: Request, res: Response) => {
             return ApiResponse.badRequest(res, 'Thiếu thông tin bắt buộc: title, description, author');
         }
 
-        const validGenres = (data.genres || []).filter((g: string) => g && g.trim() !== '');
+        // Filter valid genres: remove empty strings AND validate ObjectIds
+        const validGenres = (data.genres || [])
+            .filter((g: string) => g && g.trim() !== '')
+            .filter((g: string) => mongoose.Types.ObjectId.isValid(g));
 
         let imageUrl = data.image;
         if (!imageUrl || imageUrl.startsWith('blob:')) {
@@ -217,6 +220,54 @@ export const updateNovelStatus = async (req: Request, res: Response) => {
         }, 'Cập nhật trạng thái truyện thành công');
     } catch (error) {
         console.error('Update novel status error:', error);
+        return ApiResponse.serverError(res);
+    }
+};
+
+/**
+ * Cập nhật thông tin truyện (title, description, image, genres, status)
+ * @param req Request chứa thông tin cần cập nhật
+ * @param res Response trả về kết quả
+ */
+export const updateNovel = async (req: Request, res: Response) => {
+    try {
+        const { novelId } = req.params;
+        const { title, description, image, genres, status } = req.body;
+
+        if (!novelId || !mongoose.Types.ObjectId.isValid(novelId)) {
+            return ApiResponse.badRequest(res, 'ID truyện không hợp lệ');
+        }
+
+        const novel = await Novel.findById(novelId);
+        if (!novel) {
+            return ApiResponse.notFound(res, 'Không tìm thấy truyện');
+        }
+
+        // Update fields if provided
+        if (title) novel.title = title;
+        if (description) novel.description = description;
+        if (image) novel.image = image;
+        if (genres) {
+            // Validate genre IDs
+            const validGenres = genres.filter((g: string) => mongoose.Types.ObjectId.isValid(g));
+            novel.genres = validGenres;
+        }
+        if (status) {
+            novel.status = mapStatus(status);
+        }
+
+        await novel.save();
+
+        return ApiResponse.updated(res, {
+            novelId: novel._id,
+            title: novel.title,
+            description: novel.description,
+            image: novel.image,
+            genres: novel.genres,
+            status: novel.status
+        }, 'Cập nhật truyện thành công');
+    } catch (error) {
+        console.error('Update novel error:', error);
         return ApiResponse.serverError(res);
     }
 };

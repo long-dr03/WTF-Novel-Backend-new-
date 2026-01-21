@@ -56,6 +56,10 @@ const NovelSchema: Schema = new Schema({
     likes: {
         type: Number,
         default: 0
+    },
+    adminComment: {
+        type: String,
+        default: ''
     }
 }, {
     timestamps: true

@@ -90,20 +90,27 @@ export const getPublicNovels = async (req: Request, res: Response) => {
         }
 
         if (genre) {
-            if (mongoose.Types.ObjectId.isValid(genre)) {
-                query.genres = genre;
-            } else {
-                // Look up genre by slug (using imported Genre model, need to import if not present or use dynamic import)
-                // Dynamic import to avoid circular dep if any, or just import at top. 
-                // Assuming Genre model is needed.
-                const genreDoc = await Genre.findOne({ slug: genre });
-                if (genreDoc) {
-                    query.genres = genreDoc._id;
+            // Split by comma to support multiple genres
+            const genreList = genre.split(',').filter(g => g.trim() !== '');
+            const genreIds = [];
+
+            for (const g of genreList) {
+                if (mongoose.Types.ObjectId.isValid(g)) {
+                    genreIds.push(g);
                 } else {
-                    // If genre slug not found, maybe return empty or ignore?
-                    // Return empty to be safe (no novels for non-existent genre)
-                    return ApiResponse.success(res, { novels: [], total: 0, page, pages: 0 }, 'Genre not found');
+                    // Look up by slug
+                    const genreDoc = await Genre.findOne({ slug: g });
+                    if (genreDoc) {
+                        genreIds.push(genreDoc._id);
+                    }
                 }
+            }
+
+            if (genreIds.length > 0) {
+                query.genres = { $in: genreIds };
+            } else if (genreList.length > 0) {
+                // If genres were provided but none resolved to IDs, return empty
+                return ApiResponse.success(res, { novels: [], total: 0, page, pages: 0 }, 'Genre not found');
             }
         }
 

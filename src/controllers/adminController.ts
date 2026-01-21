@@ -128,9 +128,14 @@ export const approveNovel = async (req: Request, res: Response) => {
 export const rejectNovel = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
+        const { reason } = req.body; // Get reason from body
+
         const novel = await Novel.findByIdAndUpdate(
             id,
-            { publishStatus: 'rejected' },
+            {
+                publishStatus: 'rejected',
+                adminComment: reason || ''
+            },
             { new: true }
         );
 

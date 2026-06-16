@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { index } from '../controllers/home.controller';
+import { index, getPublicSettings } from '../controllers/home.controller';
 import { login, register, getProfile, updateProfile } from '../controllers/authendication';
 import { createNovel, uploadChapter, updateChapterStatus, updateNovelStatus, updateNovel } from '../controllers/uploadNovel';
 import { getPopularNovels, getNovelsByAuthor, getNovelById, getChaptersByNovel, getChapterContent, getPublicNovels, getPublicGenres } from '../controllers/getNovel';
@@ -9,6 +9,8 @@ import { upload } from '../middlewares/upload.middleware';
 const router = Router();
 // authen
 router.get('/', index);
+// public settings (ads + popup) - không cần đăng nhập
+router.get('/public-settings', getPublicSettings);
 router.post('/login', login);
 router.post('/register', register);
 // novel

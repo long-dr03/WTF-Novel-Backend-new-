@@ -82,11 +82,17 @@ export const getPublicNovels = async (req: Request, res: Response) => {
         const search = req.query.search as string;
         const genre = req.query.genre as string;
         const isFeatured = req.query.isFeatured === 'true';
+        const sort = req.query.sort as string; // 'newest' | 'popular' | 'updated'
+        const status = req.query.status as string; // 'ongoing' | 'completed' | 'hiatus'
 
         const query: any = { publishStatus: 'published' };
 
         if (search) {
             query.title = { $regex: search, $options: 'i' };
+        }
+
+        if (status) {
+            query.status = status;
         }
 
         if (genre) {
@@ -118,10 +124,20 @@ export const getPublicNovels = async (req: Request, res: Response) => {
             query.isFeatured = true;
         }
 
+        // Sắp xếp
+        let sortObj: any = { isFeatured: -1 };
+        if (sort === 'popular') {
+            sortObj.views = -1;
+        } else if (sort === 'updated') {
+            sortObj.updatedAt = -1;
+        } else {
+            sortObj.createdAt = -1; // default newest
+        }
+
         const novels = await Novel.find(query)
             .populate('author', 'username avatar')
             .populate('genres', 'name slug')
-            .sort({ isFeatured: -1, createdAt: -1 }) // Featured first, then newest
+            .sort(sortObj)
             .skip((page - 1) * limit)
             .limit(limit);
 

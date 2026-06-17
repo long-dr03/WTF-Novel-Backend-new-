@@ -3,6 +3,8 @@ import { index } from '../controllers/home.controller';
 import { login, register, getProfile, updateProfile } from '../controllers/authendication';
 import { createNovel, uploadChapter, updateChapterStatus, updateNovelStatus, updateNovel } from '../controllers/uploadNovel';
 import { getPopularNovels, getNovelsByAuthor, getNovelById, getChaptersByNovel, getChapterContent, getPublicNovels, getPublicGenres } from '../controllers/getNovel';
+import { createReport } from '../controllers/report.controller';
+import { getAuthorStats } from '../controllers/analytics.controller';
 import { protect } from '../middlewares/auth.middleware';
 import { upload } from '../middlewares/upload.middleware';
 
@@ -28,5 +30,8 @@ router.put('/chapter/:chapterId/status', updateChapterStatus);
 // profile
 router.get('/me', protect, getProfile);
 router.put('/me', protect, upload.single('avatar'), updateProfile);
+// reports & analytics
+router.post('/reports', protect, createReport);
+router.get('/author/stats', protect, getAuthorStats);
 
 export default router;

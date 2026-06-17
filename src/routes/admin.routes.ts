@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { protect } from '../middlewares/auth.middleware';
 import { admin } from '../middlewares/authAdmin.middleware';
 import * as adminController from '../controllers/adminController';
+import { getReports, updateReportStatus } from '../controllers/report.controller';
 
 const router = Router();
 
@@ -32,5 +33,9 @@ router.delete('/genres/:id', adminController.deleteGenre);
 // Settings
 router.get('/settings', adminController.getSettings);
 router.put('/settings', adminController.updateSettings);
+
+// Reports Management
+router.get('/reports', getReports);
+router.put('/reports/:id', updateReportStatus);
 
 export default router;

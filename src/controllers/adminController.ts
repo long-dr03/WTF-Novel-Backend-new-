@@ -301,11 +301,11 @@ export const updateSettings = async (req: Request, res: Response) => {
         let settings = await Setting.findOne();
         if (!settings) {
             settings = new Setting(req.body);
-            await settings.save();
         } else {
-            Object.assign(settings, req.body);
-            await settings.save();
+            // .set() là deep-setter của Mongoose, theo dõi đúng các path lồng nhau
+            settings.set(req.body);
         }
+        await settings.save();
         res.status(200).json(settings);
     } catch (error) {
         res.status(500).json({ message: 'Lỗi khi cập nhật cài đặt', error });

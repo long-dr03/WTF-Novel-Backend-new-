@@ -400,9 +400,18 @@ export const restoreData = async (req: Request, res: Response) => {
             const Model = modelsMap[colName];
             const docs = backupData[colName];
             if (Model && Array.isArray(docs)) {
-                await Model.deleteMany({});
                 if (docs.length > 0) {
-                    await Model.insertMany(docs);
+                    const bulkOps = docs.map((doc: any) => {
+                        const { _id, ...updatePayload } = doc;
+                        return {
+                            updateOne: {
+                                filter: { _id: _id },
+                                update: { $set: updatePayload },
+                                upsert: true
+                            }
+                        };
+                    });
+                    await Model.bulkWrite(bulkOps);
                 }
                 restoredCollections.push(colName);
             }

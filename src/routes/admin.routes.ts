@@ -40,5 +40,6 @@ router.put('/reports/:id', updateReportStatus);
 
 // Backup Management
 router.post('/backup', adminController.backupData);
+router.post('/restore', adminController.restoreData);
 
 export default router;

@@ -38,4 +38,7 @@ router.put('/settings', adminController.updateSettings);
 router.get('/reports', getReports);
 router.put('/reports/:id', updateReportStatus);
 
+// Backup Management
+router.post('/backup', adminController.backupData);
+
 export default router;
